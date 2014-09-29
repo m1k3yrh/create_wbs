@@ -1,20 +1,20 @@
 {
-    "Planned For":{
-		"FY14Q4 Sprint 2":1,
-		"FY14Q4 Sprint 3":2,
-		"FY14Q4 Sprint 4":3,
-		"FY14-Q4":4,
-		"FY15-Q1-Sprint1":5,
-		"FY15-Q1-Sprint2":6,
-		"FY15-Q1":7,
-        "Backlog":9
-     },
-	 "Priority":{
-		"High":1,
-		"Medium":2,
-		"Low":3,
-		"Unassigned":4
-	},
+    "Planned For":[
+		"FY14Q4 Sprint 2",
+		"FY14Q4 Sprint 3",
+		"FY14Q4 Sprint 4",
+		"FY14-Q4",
+		"FY15-Q1-Sprint1",
+		"FY15-Q1-Sprint2",
+		"FY15-Q1",
+		"Backlog"
+    ],
+	"Priority":[
+		"High",
+		"Medium",
+		"Low",
+		"Unassigned"
+	],
 	
 	"_comment":"See http://xlsxwriter.readthedocs.org/en/latest/working_with_formats.html for description how to set formats for below",
 	"Format":{

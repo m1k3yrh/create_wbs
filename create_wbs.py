@@ -161,6 +161,8 @@ except IOError:
 configured_data = json.loads(config_file.read())	#read the config file
 load_cell_formats()
 header_format=formats['Header']
+planned_for_order={value:key for key,value in enumerate(configured_data['Planned For'])}
+priority_order={value:key for key,value in enumerate(configured_data['Priority'])}
 
 try:
 	hyperlink_prefix=configured_data['Hyperlink']
@@ -186,19 +188,48 @@ header = input[0]	#extract the header from the top row
 	
 # create dictionary for the header names and indices
 print("Cleaning Data...")
-headers = dict()	
-for i in range(0, len(header)):
-	temp = {header[i]:i}
-	headers.update(temp)
-
-planned_for_column = headers['Planned For']
-priority_column = headers['Priority']
-rank_column = headers['Rank (relative to Priority)']
-id_column = headers['Id']
-parent_column = headers['Parent']
-type_column = headers['Type']
-status_column = headers['Status']
-storypts_column = headers['Story Points']
+# Create a dictionary of the indices of Header row items
+headers={value:key for key,value in enumerate(header)}
+try:
+	planned_for_column = headers['Planned For']
+except:
+	print("Error: csv file must contain 'Planned For' attribute")
+	sys.exit(0)
+try:	
+	priority_column = headers['Priority']
+except:
+	print("Error: csv file must contain 'Priority' attribute")
+	sys.exit(0)
+try:	
+	rank_column = headers['Rank (relative to Priority)']
+except:
+	print("Error: csv file must contain 'Rank (relative to Priority)' attribute")
+	sys.exit(0)
+try:
+	id_column = headers['Id']
+except:
+	print("Error: csv file must contain 'Id' attribute")
+	sys.exit(0)
+try:
+	parent_column = headers['Parent']
+except:
+	print("Error: csv file must contain 'Parent' attribute")
+	sys.exit(0)
+try:
+	type_column = headers['Type']
+except:
+	print("Error: csv file must contain 'Type' attribute")
+	sys.exit(0)
+try:
+	status_column = headers['Status']
+except:
+	print("Error: csv file must contain 'Status' attribute")
+	sys.exit(0)
+try:
+	storypts_column = headers['Story Points']
+except:
+	print("Error: csv file must contain 'Story Points' attribute")
+	sys.exit(0)
 
 x_raw_sheet = print_header(x_raw_sheet,header, input_worksheet)
 
@@ -206,8 +237,14 @@ x_raw_sheet = print_header(x_raw_sheet,header, input_worksheet)
 data = input[1:]	#extract all the work items
 for row in data:
 	x_raw_sheet = print_a_row(x_raw_sheet,row, input_worksheet)	# write to input worksheet
-	rank_split = row[rank_column].split(' ')
-	row[rank_column]= rank_split.pop()	# clean up rank_column
+	try:
+		rank = row[rank_column].split(' ')[1]
+	except:
+		rank = 'z' # no rank assigned so give is very high ranking
+	planned_for=planned_for_order[row[planned_for_column]]
+	priority=priority_order[row[priority_column]]
+	id=int(row[id_column])
+	row[rank_column]='%06x:%06x:%s:%08x'%(planned_for,priority,rank,id)
 	row[parent_column] = row[parent_column].lstrip('#')	# clean up parent_column id_column
 	points = row[storypts_column].split(' ')[0]	# clean up story points
 	if points is '':
@@ -215,7 +252,7 @@ for row in data:
 	row[storypts_column] = int(points)
 	
 print("Sorting...")
-data.sort(key= itemgetter(planned_for_column,priority_column,rank_column,id_column)) #creates ranked list
+data.sort(key= itemgetter(rank_column)) #creates ranked list
 
 
 print("Creating Worksheets...")
