@@ -1,0 +1,29 @@
+{
+    "Planned For":{
+            	"FY14Q4 Sprint 2":1,
+			"FY14Q4 Sprint 3":2,
+			"FY14Q4 Sprint 4":3,
+			"FY14-Q4":4,
+			"FY15-Q1-Sprint1":5,
+			"FY15-Q1-Sprint2":6,
+			"FY15-Q1":7,
+            	"Backlog":9
+     },
+	 "Priority":{
+			"High":1,
+			"Medium":2,
+			"Low":3,
+			"Unassigned":4
+	},
+	"Format":{
+			"Capability":["Times New Roman",10,"False","False","black"],
+			"Defect":["Times New Roman",10,"False","False","black"],
+			"Epic":["Times New Roman",16,"False","True","black"],
+			"Feature":["Times New Roman",14,"False","False","black"],
+			"Story":["Times New Roman",12,"False","False", "black"],
+			"Header":["Times New Roman",15,"True","False","blue"]
+	},
+	"Hyperlink":"https://clm.bdc6.aess.accenture.com/ccm1/web/projects/Managed%20Services%20-%20Asset#action=com.ibm.team.workitem.viewWorkItem&id="
+}
+
+
