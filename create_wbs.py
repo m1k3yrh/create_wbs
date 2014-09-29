@@ -31,16 +31,12 @@ input_worksheet = workbook.add_worksheet('Input')	#creates a worksheet for ranki
 
 # format variables
 header_format = workbook.add_format()	# Add a bold format to use to highlight cells.
-defect_format = workbook.add_format()
-epic_format = workbook.add_format()	
-capability_format = workbook.add_format()	
-feature_format = workbook.add_format()		
-story_format = workbook.add_format()
 percent_complete_format = workbook.add_format()
 percent_complete_format.set_num_format(0x09)
 hyperlink_format=workbook.add_format()
 hyperlink_format.set_font_color('blue')
 hyperlink_format.set_underline()
+formats={} # Create empty dictionary
 
 #hyperlink
 hyperlink_prefix=None
@@ -51,27 +47,23 @@ x_raw_sheet = 0	# row index for input worksheet
 type_column = 0
 percent_complete_column=0
 
-def create_cell_format(aformat, atype):
-	config = configured_data['Format'][atype]
-	aformat.set_font_name(config[0])
-	aformat.set_font_size(config[1])
-	if config[2]== "True":
-		aformat.set_bold()
-	if config[3]== "True":
-		aformat.set_italic()
-	aformat.set_font_color(config[4])
-		
+def load_cell_formats():
+	global formats
+	configs=configured_data['Format']
+	for config_key in configs.keys():
+		config_value=configs[config_key]
+		try:
+			formats[config_key]=workbook.add_format(config_value)
+		except:
+			print("json format error:  Couldn't parse:",config_value)
+			sys.exit(-1)
+	
 def set_cell_format(cell_value):
-	if cell_value == "Capability":
-		return capability_format
-	elif cell_value == "Defect":
-		return defect_format
-	elif cell_value == "Epic":
-		return epic_format
-	elif cell_value == "Feature":
-		return feature_format
-	elif cell_value == "Story":
-		return story_format
+	global formats
+	try:
+		return formats[cell_value]
+	except:
+		return None
 	
 		
 # function to write a row to the output file
@@ -80,16 +72,14 @@ def print_a_row(ax,arow,aworksheet,depth=0):
 	global type_column
 	global percent_complete_column
 	
-	cell_format = set_cell_format(arow[type_column])	
 	for y in range(0,len(arow)):
-		if y==type_column:
-			aworksheet.write(ax,y,arow[y],cell_format)	# only format the type column to make things tidier.
-		elif y==id_column and hyperlink_prefix!=None:
+		cell_format=set_cell_format(arow[y])
+		if y==id_column and hyperlink_prefix!=None:
 			aworksheet.write(ax,y,'=hyperlink("' + hyperlink_prefix + arow[y] +'",' + arow[y] + ')',hyperlink_format)
 		elif y==percent_complete_column :
 			aworksheet.write(ax,y,arow[y],percent_complete_format)
 		else:
-			aworksheet.write(ax,y,arow[y])	
+			aworksheet.write(ax,y,arow[y],cell_format)	
 			
 	aworksheet.set_row(ax, None, None, {'level': depth})		# sets the grouping level for this row
 	ax +=1
@@ -169,12 +159,8 @@ except IOError:
     sys.exit(0)
 
 configured_data = json.loads(config_file.read())	#read the config file
-create_cell_format(defect_format,"Defect")
-create_cell_format(epic_format,"Epic")
-create_cell_format(capability_format,"Capability")
-create_cell_format(feature_format,"Feature")
-create_cell_format(story_format,"Story")
-create_cell_format(header_format,"Header")
+load_cell_formats()
+header_format=formats['Header']
 
 try:
 	hyperlink_prefix=configured_data['Hyperlink']
