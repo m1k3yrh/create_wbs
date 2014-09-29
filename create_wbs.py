@@ -244,7 +244,8 @@ for row in data:
 	planned_for=planned_for_order[row[planned_for_column]]
 	priority=priority_order[row[priority_column]]
 	id=int(row[id_column])
-	row[rank_column]='%06x:%06x:%s:%08x'%(planned_for,priority,rank,id)
+#	row[rank_column]='%06x:%06x:%s:%08x'%(planned_for,priority,rank,id)  -- Removed Planned_for from ranking as this isn't used in RTC and probably doesn't make sense for product backlog
+	row[rank_column]='%06x:%s:%08x'%(priority,rank,id)
 	row[parent_column] = row[parent_column].lstrip('#')	# clean up parent_column id_column
 	points = row[storypts_column].split(' ')[0]	# clean up story points
 	if points is '':
