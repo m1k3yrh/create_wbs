@@ -23,14 +23,21 @@ sys.path.append(os.getcwd())
 from config import configured_data
 
 # read the input parameters
-rtc_export_file_name = sys.argv[1]	
-output_excel_file_name = sys.argv[2]
+try:
+	rtc_export_file_name = sys.argv[1]	
+	output_excel_file_name = sys.argv[2]
+except:
+	print("Usage: python create_wbs.py <input_csv_file> <output_xlsx_file>")
+	print("Where <input_csv_file is export from RTC query")
+	print("      <output_csv_file> will contain report from script")
+	sys.exit(0)
 
 workbook = xlsxwriter.Workbook(output_excel_file_name)	#creates output excel file 
 grouped_worksheet = workbook.add_worksheet('Work Breakdown')	#creates a worksheet for grouping
 grouped_worksheet.outline_settings(True, False, False, True)	# displays the grouping summary above
 ranked_worksheet = workbook.add_worksheet('Ranked')	#creates a worksheet for ranking
-input_worksheet = workbook.add_worksheet('Input')	#creates a worksheet for ranking
+input_worksheet = workbook.add_worksheet('Input')	#creates a worksheet for regurgitating input
+error_worksheet = workbook.add_worksheet('Errors') # workbook for all suspicious data found from input
 
 # format variables
 percent_complete_format = workbook.add_format()
@@ -48,8 +55,11 @@ hyperlink_prefix=None
 x_grouped_sheet = 0 # row index for grouped worksheet
 x_ranked_sheet = 0	# row index for ranked worksheet
 x_raw_sheet = 0	# row index for input worksheet
+x_error_sheet =0
 type_column = 0
 percent_complete_column=0
+parent_list={}
+
 
 def load_cell_formats():
 	global formats
@@ -102,6 +112,19 @@ def print_header(ax,arow,aworksheet,hidden=False):
 	ax +=1
 	return ax
 
+#Creates a dictionary of lists of rows with a specific parent.
+def create_parent_list_dictionary():
+	global parent_list
+	global id_dictionary
+	
+	for row in data:
+		if not check_filters(row): # Ignore everything which filters say to ignore
+			parent=row[parent_column]
+			if parent in parent_list:
+				parent_list[parent].append(row) # add to list against key parent
+			else:
+				parent_list[parent]=[row] # Create a new list against key parent
+
 
 # function to recursively group children in work break down structure and write to output file
 def search_children(acurrent,depth): 
@@ -112,7 +135,6 @@ def search_children(acurrent,depth):
 	my_completed_points=0
 	childpts = 0
 	completed_child_points=0
-	children=False
 	
 	if acurrent==None:
 		current_id=""		# orphan
@@ -127,12 +149,16 @@ def search_children(acurrent,depth):
 		except:
 			my_completed_points=0
 
-	for item in data:
-		if current_id == item[parent_column] and not check_filters(item):
-			temp = search_children(item,depth+1)	# recursively add the story point for the child
-			childpts+=temp['child_pts']
-			completed_child_points+=temp['completed_child_points']
-			children=True
+	try:
+		children=parent_list[current_id]
+	except:
+		pass # no children so move on
+	else:
+		for item in children:
+#			if not check_filters(item): # Not needed as we filter the parent_list already
+				temp = search_children(item,depth+1)	# recursively add the story point for the child
+				childpts+=temp['child_pts']
+				completed_child_points+=temp['completed_child_points']
 	
 	if acurrent!=None:
 		acurrent.append(my_completed_points)
@@ -143,11 +169,23 @@ def search_children(acurrent,depth):
 		except ZeroDivisionError:
 			percent_complete=""
 		acurrent.append(percent_complete)
-		print_a_row(myx,acurrent,grouped_worksheet,depth)	
-
-			
+		print_a_row(myx,acurrent,grouped_worksheet,depth)				
 	return {'child_pts':mypts+childpts,'completed_child_points':my_completed_points+completed_child_points}	# base call to return story point for current
 
+# Check that all items in data have parents in data as well
+def missing_parents_report():
+	global x_error_sheet
+	
+	error=False
+	for id in parent_list:
+		if not id in id_dictionary:
+			if not error:
+				error_worksheet.write(x_error_sheet,0,"Fatal: The follow parents are missing from the input file.  Data will be missing from WBS")
+				x_error_sheet+=1
+				error=True
+			error_worksheet.write_url(x_error_sheet,0,hyperlink_prefix + id ,None, id)			
+
+	return error
 
 ######################## Main starts here #####################
 #read the configuration
@@ -274,6 +312,10 @@ print("Creating Worksheets...")
 
 x_grouped_sheet = print_header(x_grouped_sheet,header, grouped_worksheet,True)
 	
+id_dictionary={row[id_column]:row  for row in data if not check_filters(row)}
+create_parent_list_dictionary()
+
+missing_parents_report()
 search_children(None,0)		# creates grouping and writes to grouped worksheet
 
 x_ranked_sheet = print_header(x_ranked_sheet,header, ranked_worksheet,True)
