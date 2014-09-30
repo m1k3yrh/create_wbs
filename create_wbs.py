@@ -274,16 +274,13 @@ print("Creating Worksheets...")
 
 x_grouped_sheet = print_header(x_grouped_sheet,header, grouped_worksheet,True)
 	
-print(len(data))
 search_children(None,0)		# creates grouping and writes to grouped worksheet
 
 x_ranked_sheet = print_header(x_ranked_sheet,header, ranked_worksheet,True)
-print(data[0])
 for row in data:
-	if check_filters(row):
+	if not check_filters(row):
 		x_ranked_sheet = print_a_row(x_ranked_sheet,row, ranked_worksheet)	# writes to ranked worksheet
 
-print(len(data))
 print("Closing...")
 try:
 	workbook.close()	# close output file	
