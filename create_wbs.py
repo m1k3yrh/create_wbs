@@ -70,13 +70,10 @@ def set_cell_format(cell_value):
 	
 # Test the Filters to see if any of the columns match
 def check_filters(arow):
-	for i,y in enumerate(header):
-		try:
-			filter=filters[y] # look for a filter for this column
-			if arow[i] in filter:
-				return True
-		except:
-			continue
+	for key,filter in filters.items():
+		y=headers[key]
+		if arow[y] in filter:
+			return True
 	return False
 		
 # function to write a row to the output file
@@ -109,7 +106,8 @@ def print_header(ax,arow,aworksheet,hidden=False):
 # function to recursively group children in work break down structure and write to output file
 def search_children(acurrent,depth): 
 	global x_grouped_sheet
-	myx = x_grouped_sheet-1
+	global data
+	
 	mypts = 0
 	my_completed_points=0
 	childpts = 0
@@ -119,6 +117,8 @@ def search_children(acurrent,depth):
 	if acurrent==None:
 		current_id=""		# orphan
 	else:
+		myx = x_grouped_sheet
+		x_grouped_sheet+=1 # reserve a row for me
 		current_id = acurrent[id_column]
 		mypts = acurrent[storypts_column]
 		status=acurrent[status_column]
@@ -129,27 +129,21 @@ def search_children(acurrent,depth):
 
 	for item in data:
 		if current_id == item[parent_column] and not check_filters(item):
-			x_grouped_sheet = print_a_row(x_grouped_sheet,item,grouped_worksheet,depth)	
 			temp = search_children(item,depth+1)	# recursively add the story point for the child
 			childpts+=temp['child_pts']
 			completed_child_points+=temp['completed_child_points']
 			children=True
-			
-	if myx >= 1:
-		grouped_worksheet.write(myx,storypts_column,mypts)
+	
+	if acurrent!=None:
 		acurrent.append(my_completed_points)
-		grouped_worksheet.write(myx,earned_story_points_column,my_completed_points)
-		if children:
-			acurrent.append(mypts+childpts)
-			grouped_worksheet.write(myx,accumulated_story_points_column,mypts+childpts)
-			acurrent.append(my_completed_points+completed_child_points)
-			grouped_worksheet.write(myx,accumulated_earnt_points_column,my_completed_points+completed_child_points)
+		acurrent.append(mypts+childpts)
+		acurrent.append(my_completed_points+completed_child_points)
 		try:
 			percent_complete=(my_completed_points+completed_child_points)/(mypts+childpts)
 		except ZeroDivisionError:
 			percent_complete=""
 		acurrent.append(percent_complete)
-		grouped_worksheet.write(myx,percent_complete_column,percent_complete,percent_complete_format)
+		print_a_row(myx,acurrent,grouped_worksheet,depth)	
 
 			
 	return {'child_pts':mypts+childpts,'completed_child_points':my_completed_points+completed_child_points}	# base call to return story point for current
@@ -193,12 +187,22 @@ input = list()
 for r in reader:	# creates a list of row items
 	input.append(r)
 
+# Split input into header and data
 header = input[0]	#extract the header from the top row
-	
-# create dictionary for the header names and indices
-print("Cleaning Data...")
-# Create a dictionary of the indices of Header row items
+data = input[1:]	#extract all the work items
+
+# Add columns for calculated values to header
+header.append("Earned Story Points")
+earned_story_points_column=len(header)-1
+header.append("Accumulated Story Points")
+accumulated_story_points_column=len(header)-1
+header.append("Accumulated Earnt Points")
+accumulated_earnt_points_column=len(header)-1
+header.append("Percent Complete")
+percent_complete_column=len(header)-1
+#create enumerated dictionary of header to help finding columns
 headers={value:key for key,value in enumerate(header)}
+#Find the special columns needed for processing
 try:
 	planned_for_column = headers['Planned For']
 except:
@@ -240,19 +244,20 @@ except:
 	print("Error: csv file must contain 'Story Points' attribute")
 	sys.exit(0)
 
+print("Create Raw Sheet...")
 x_raw_sheet = print_header(x_raw_sheet,header, input_worksheet)
+for i,row in enumerate(data,1):
+	print_a_row(i,row, input_worksheet)	# write to input worksheet
 
-# Clean up the input data and do the sorting	
-data = input[1:]	#extract all the work items
+# create dictionary for the header names and indices
+print("Cleaning Data...")
 for row in data:
-	x_raw_sheet = print_a_row(x_raw_sheet,row, input_worksheet)	# write to input worksheet
 	try:
 		rank = row[rank_column].split(' ')[1]
 	except:
 		rank = 'z' # no rank assigned so give is very high ranking
 	priority=priority_order[row[priority_column]]
 	id=int(row[id_column])
-#	row[rank_column]='%06x:%06x:%13s:%08x'%(planned_for,priority,rank,id)  -- Removed Planned_for from ranking as this isn't used in RTC and probably doesn't make sense for product backlog
 	row[rank_column]='%06x.%s.%08x'%(priority,rank,id) # dots used as separators as they come before 0 in ascii.  short string comes before longer one.
 	row[parent_column] = row[parent_column].lstrip('#')	# clean up parent_column id_column
 	points = row[storypts_column].split(' ')[0]	# clean up story points
@@ -265,25 +270,20 @@ data.sort(key= itemgetter(rank_column)) #creates ranked list
 
 
 print("Creating Worksheets...")
-# add extra calculation rows
-header.append("Earned Story Points")
-earned_story_points_column=len(header)-1
-header.append("Accumulated Story Points")
-accumulated_story_points_column=len(header)-1
-header.append("Accumulated Earnt Points")
-accumulated_earnt_points_column=len(header)-1
-header.append("Percent Complete")
-percent_complete_column=len(header)-1
+
 
 x_grouped_sheet = print_header(x_grouped_sheet,header, grouped_worksheet,True)
 	
+print(len(data))
 search_children(None,0)		# creates grouping and writes to grouped worksheet
 
 x_ranked_sheet = print_header(x_ranked_sheet,header, ranked_worksheet,True)
+print(data[0])
 for row in data:
 	if check_filters(row):
 		x_ranked_sheet = print_a_row(x_ranked_sheet,row, ranked_worksheet)	# writes to ranked worksheet
 
+print(len(data))
 print("Closing...")
 try:
 	workbook.close()	# close output file	
