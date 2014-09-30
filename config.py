@@ -18,12 +18,13 @@ configured_data={
 	
 # See http://xlsxwriter.readthedocs.org/en/latest/working_with_formats.html for description how to set formats for below
 	"Format":{
+		"Header":{"font":"Times New Roman","size":15,"bold":1,"color":"blue"},
+		"Error_Item":{"font":"Times New Roman","size":20,"bold":1},
 		"Capability":{"font":"Times New Roman","size":10},
 		"Defect":{"font":"Times New Roman","size":10},
 		"Epic":{"font":"Times New Roman","size":16,"italic":1},
 		"Feature":{"font":"Times New Roman","size":14},
 		"Story":{"font":"Times New Roman","size":12},
-		"Header":{"font":"Times New Roman","size":15,"bold":1,"color":"blue"},
 		"Impeded":{"color":"red"},
 		"More Information":{"color":"orange"},
 		"Done":{"color":"green"},

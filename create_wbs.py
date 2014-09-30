@@ -65,8 +65,7 @@ parent_list={}
 def load_cell_formats():
 	global formats
 	configs=configured_data['Format']
-	for config_key in configs.keys():
-		config_value=configs[config_key]
+	for config_key,config_value in configs.items():
 		try:
 			formats[config_key]=workbook.add_format(config_value)
 		except:
@@ -91,7 +90,7 @@ def check_filters(arow):
 # function returns the index for the next available row
 def print_a_row(ax,arow,aworksheet,depth=0): 
 	for i,y in enumerate(arow):
-		if i==id_column and hyperlink_prefix!=None:
+		if ( i==id_column or i==parent_column ) and hyperlink_prefix!=None:
 			aworksheet.write_url(ax,i,hyperlink_prefix + y ,None, y )
 		elif i==percent_complete_column :
 			aworksheet.write(ax,i,y,percent_complete_format)
@@ -108,7 +107,7 @@ def print_a_row(ax,arow,aworksheet,depth=0):
 def print_header(ax,arow,aworksheet,hidden=False): 
 	for y,col in enumerate(arow):	
 		aworksheet.write(ax,y,col,header_format)
-		if col in hidden_columns:
+		if hidden and col in hidden_columns:
 			aworksheet.set_column(y,y,None,None,{'hidden':True})
 	ax +=1
 	return ax
@@ -177,22 +176,27 @@ def search_children(acurrent,depth):
 def missing_parents_report():
 	global x_error_sheet
 	
-	error=False
+	is_error=False
 	for id in parent_list:
-		if not id in id_dictionary:
-			if not error:
+		if not id=="" and not id in id_dictionary:
+			if not is_error:
 				error_worksheet.set_tab_color('red')
-				error_worksheet.write(x_error_sheet,0,"Fatal: The follow parents are missing from the input file.  Data will be missing from WBS")
+				error_worksheet.write(x_error_sheet,0,
+									"Fatal: The follow items don't have parents in the input file.  Data will be missing from WBS",error_format)
 				x_error_sheet+=1
-				error=True
-			error_worksheet.write_url(x_error_sheet,0,hyperlink_prefix + id ,None, id)			
+				is_error=True
+			for item in parent_list[id]:
+				x_error_sheet=print_a_row(x_error_sheet,item,error_worksheet)
+	return is_error
 
-	return error
+def wrong_state_report():
+	print('hello')
 
 ######################## Main starts here #####################
 #read the configuration
 load_cell_formats()
 header_format=formats['Header']
+error_format=formats['Error_Item']
 planned_for_order={value:key for key,value in enumerate(configured_data['Planned For'])}
 priority_order={value:key for key,value in enumerate(configured_data['Priority'])}
 try:
@@ -289,6 +293,9 @@ x_raw_sheet = print_header(x_raw_sheet,header, input_worksheet)
 for i,row in enumerate(data,1):
 	print_a_row(i,row, input_worksheet)	# write to input worksheet
 
+# Prep error sheet
+x_error_sheet = print_header(x_error_sheet,header, error_worksheet)
+
 # create dictionary for the header names and indices
 print("Cleaning Data...")
 for row in data:
@@ -312,7 +319,7 @@ data.sort(key= itemgetter(rank_column)) #creates ranked list
 print("Creating Worksheets...")
 
 
-x_grouped_sheet = print_header(x_grouped_sheet,header, grouped_worksheet,True)
+x_grouped_sheet = print_header(x_grouped_sheet,header, grouped_worksheet,hidden=True)
 	
 id_dictionary={row[id_column]:row  for row in data if not check_filters(row)}
 create_parent_list_dictionary()
@@ -320,7 +327,7 @@ create_parent_list_dictionary()
 missing_parents_report()
 search_children(None,0)		# creates grouping and writes to grouped worksheet
 
-x_ranked_sheet = print_header(x_ranked_sheet,header, ranked_worksheet,True)
+x_ranked_sheet = print_header(x_ranked_sheet,header, ranked_worksheet,hidden=True)
 for row in data:
 	if not check_filters(row):
 		x_ranked_sheet = print_a_row(x_ranked_sheet,row, ranked_worksheet)	# writes to ranked worksheet
