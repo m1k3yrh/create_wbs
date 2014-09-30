@@ -10,18 +10,21 @@
 #This also requires xlswriter. To install, see http://xlsxwriter.readthedocs.org/getting_started.html#getting-started
 
 import csv     
-import sys      
+import sys  
+import os    
 import xlsxwriter
 from xlsxwriter.utility import xl_rowcol_to_cell
 from operator import itemgetter
 import re	
-import json
 import locale
+
+# Load configuration from local config.py file
+sys.path.append(os.getcwd())
+from config import configured_data
 
 # read the input parameters
 rtc_export_file_name = sys.argv[1]	
 output_excel_file_name = sys.argv[2]
-config_file_name = 'config.json'
 
 workbook = xlsxwriter.Workbook(output_excel_file_name)	#creates output excel file 
 grouped_worksheet = workbook.add_worksheet('Work Breakdown')	#creates a worksheet for grouping
@@ -79,14 +82,14 @@ def check_filters(arow):
 # function to write a row to the output file
 # function returns the index for the next available row
 def print_a_row(ax,arow,aworksheet,depth=0): 
-	for y in range(0,len(arow)):
-		cell_format=set_cell_format(arow[y])
-		if y==id_column and hyperlink_prefix!=None:
-			aworksheet.write(ax,y,'=hyperlink("' + hyperlink_prefix + arow[y] +'",' + arow[y] + ')',hyperlink_format)
-		elif y==percent_complete_column :
-			aworksheet.write(ax,y,arow[y],percent_complete_format)
+	for i,y in enumerate(arow):
+		if i==id_column and hyperlink_prefix!=None:
+			aworksheet.write_url(ax,i,hyperlink_prefix + y ,None, y )
+		elif i==percent_complete_column :
+			aworksheet.write(ax,i,y,percent_complete_format)
 		else:
-			aworksheet.write(ax,y,arow[y],cell_format)	
+			cell_format=set_cell_format(y)
+			aworksheet.write(ax,i,y,cell_format)	
 			
 	aworksheet.set_row(ax, None, None, {'level': depth})		# sets the grouping level for this row
 	ax +=1
@@ -98,7 +101,6 @@ def print_header(ax,arow,aworksheet,hidden=False):
 	for y,col in enumerate(arow):	
 		aworksheet.write(ax,y,col,header_format)
 		if col in hidden_columns:
-			print("Hiding", y)
 			aworksheet.set_column(y,y,None,None,{'hidden':True})
 	ax +=1
 	return ax
@@ -154,15 +156,7 @@ def search_children(acurrent,depth):
 
 
 ######################## Main starts here #####################
-#read the config file
-try:
-	config_file = open(config_file_name)	#open the config file
-
-except IOError:
-    print ('Error. Cannot open', config_file_name)
-    sys.exit(0)
-
-configured_data = json.loads(config_file.read())	#read the config file
+#read the configuration
 load_cell_formats()
 header_format=formats['Header']
 planned_for_order={value:key for key,value in enumerate(configured_data['Planned For'])}
@@ -256,7 +250,6 @@ for row in data:
 		rank = row[rank_column].split(' ')[1]
 	except:
 		rank = 'z' # no rank assigned so give is very high ranking
-	planned_for=planned_for_order[row[planned_for_column]]
 	priority=priority_order[row[priority_column]]
 	id=int(row[id_column])
 #	row[rank_column]='%06x:%06x:%13s:%08x'%(planned_for,priority,rank,id)  -- Removed Planned_for from ranking as this isn't used in RTC and probably doesn't make sense for product backlog
@@ -299,6 +292,5 @@ except IOError:
 	sys.exit(0)
 	
 input_file.close()      # close input file				
-config_file.close()	# close config file
 print("Done")
 
