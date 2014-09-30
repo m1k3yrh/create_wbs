@@ -38,6 +38,7 @@ grouped_worksheet.outline_settings(True, False, False, True)	# displays the grou
 ranked_worksheet = workbook.add_worksheet('Ranked')	#creates a worksheet for ranking
 input_worksheet = workbook.add_worksheet('Input')	#creates a worksheet for regurgitating input
 error_worksheet = workbook.add_worksheet('Errors') # workbook for all suspicious data found from input
+error_worksheet.set_tab_color('green')
 
 # format variables
 percent_complete_format = workbook.add_format()
@@ -137,7 +138,7 @@ def search_children(acurrent,depth):
 	completed_child_points=0
 	
 	if acurrent==None:
-		current_id=""		# orphan
+		current_id=""		# initial recursion. find roots.
 	else:
 		myx = x_grouped_sheet
 		x_grouped_sheet+=1 # reserve a row for me
@@ -156,7 +157,7 @@ def search_children(acurrent,depth):
 	else:
 		for item in children:
 #			if not check_filters(item): # Not needed as we filter the parent_list already
-				temp = search_children(item,depth+1)	# recursively add the story point for the child
+				temp = search_children(item,depth if acurrent==None else depth+1)	# recursively add the story point for the child
 				childpts+=temp['child_pts']
 				completed_child_points+=temp['completed_child_points']
 	
@@ -180,6 +181,7 @@ def missing_parents_report():
 	for id in parent_list:
 		if not id in id_dictionary:
 			if not error:
+				error_worksheet.set_tab_color('red')
 				error_worksheet.write(x_error_sheet,0,"Fatal: The follow parents are missing from the input file.  Data will be missing from WBS")
 				x_error_sheet+=1
 				error=True
