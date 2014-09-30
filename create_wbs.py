@@ -24,19 +24,20 @@ output_excel_file_name = sys.argv[2]
 config_file_name = 'config.json'
 
 workbook = xlsxwriter.Workbook(output_excel_file_name)	#creates output excel file 
-grouped_worksheet = workbook.add_worksheet('Grouped')	#creates a worksheet for grouping
+grouped_worksheet = workbook.add_worksheet('Work Breakdown')	#creates a worksheet for grouping
 grouped_worksheet.outline_settings(True, False, False, True)	# displays the grouping summary above
 ranked_worksheet = workbook.add_worksheet('Ranked')	#creates a worksheet for ranking
 input_worksheet = workbook.add_worksheet('Input')	#creates a worksheet for ranking
 
 # format variables
-header_format = workbook.add_format()	# Add a bold format to use to highlight cells.
 percent_complete_format = workbook.add_format()
-percent_complete_format.set_num_format(0x09)
+percent_complete_format.set_num_format(0x09) # Predefined Excel format for %age with no decimals
 hyperlink_format=workbook.add_format()
 hyperlink_format.set_font_color('blue')
 hyperlink_format.set_underline()
 formats={} # Create empty dictionary
+filters={} # Create empty dictionary
+hidden_columns=[] # Create empty list
 
 #hyperlink
 hyperlink_prefix=None
@@ -59,19 +60,25 @@ def load_cell_formats():
 			sys.exit(-1)
 	
 def set_cell_format(cell_value):
-	global formats
 	try:
 		return formats[cell_value]
 	except:
 		return None
 	
+# Test the Filters to see if any of the columns match
+def check_filters(arow):
+	for i,y in enumerate(header):
+		try:
+			filter=filters[y] # look for a filter for this column
+			if arow[i] in filter:
+				return True
+		except:
+			continue
+	return False
 		
 # function to write a row to the output file
 # function returns the index for the next available row
 def print_a_row(ax,arow,aworksheet,depth=0): 
-	global type_column
-	global percent_complete_column
-	
 	for y in range(0,len(arow)):
 		cell_format=set_cell_format(arow[y])
 		if y==id_column and hyperlink_prefix!=None:
@@ -87,12 +94,12 @@ def print_a_row(ax,arow,aworksheet,depth=0):
 
 # function to write a row to the output file
 # function returns the index for the next available row
-def print_header(ax,arow,aworksheet): 
-	y=0
-	for col in arow:	
-		if y <= len(arow):
-			aworksheet.write(ax,y,col,header_format)	
-		y +=1
+def print_header(ax,arow,aworksheet,hidden=False): 
+	for y,col in enumerate(arow):	
+		aworksheet.write(ax,y,col,header_format)
+		if col in hidden_columns:
+			print("Hiding", y)
+			aworksheet.set_column(y,y,None,None,{'hidden':True})
 	ax +=1
 	return ax
 
@@ -113,15 +120,13 @@ def search_children(acurrent,depth):
 		current_id = acurrent[id_column]
 		mypts = acurrent[storypts_column]
 		status=acurrent[status_column]
-		if status=="In Progress" :
-			my_completed_points=0.25*mypts
-		elif status=="Implemented" :
-			my_completed_points=0.75*mypts
-		elif status=="Done" :
-			my_completed_points=1.0*mypts
-	
+		try:
+			my_completed_points=progress_table[status]*mypts
+		except:
+			my_completed_points=0
+
 	for item in data:
-		if current_id == item[parent_column]:
+		if current_id == item[parent_column] and not check_filters(item):
 			x_grouped_sheet = print_a_row(x_grouped_sheet,item,grouped_worksheet,depth)	
 			temp = search_children(item,depth+1)	# recursively add the story point for the child
 			childpts+=temp['child_pts']
@@ -135,7 +140,6 @@ def search_children(acurrent,depth):
 		if children:
 			acurrent.append(mypts+childpts)
 			grouped_worksheet.write(myx,accumulated_story_points_column,mypts+childpts)
-#			grouped_worksheet.write(myx,len(acurrent),"=sum("+xl_rowcol_to_cell(myx,storypts_column)+":"+xl_rowcol_to_cell(x_grouped_sheet-1,storypts_column)+")")
 			acurrent.append(my_completed_points+completed_child_points)
 			grouped_worksheet.write(myx,accumulated_earnt_points_column,my_completed_points+completed_child_points)
 		try:
@@ -163,7 +167,18 @@ load_cell_formats()
 header_format=formats['Header']
 planned_for_order={value:key for key,value in enumerate(configured_data['Planned For'])}
 priority_order={value:key for key,value in enumerate(configured_data['Priority'])}
-
+try:
+	progress_table=configured_data['Progress']
+except:
+	progress_table=None
+try:
+	filters=configured_data['Filters']
+except:
+	filters=None
+try:
+	hidden_columns=configured_data['Hidden']
+except:
+	hidden_columns=None
 try:
 	hyperlink_prefix=configured_data['Hyperlink']
 except KeyError:
@@ -244,8 +259,8 @@ for row in data:
 	planned_for=planned_for_order[row[planned_for_column]]
 	priority=priority_order[row[priority_column]]
 	id=int(row[id_column])
-#	row[rank_column]='%06x:%06x:%s:%08x'%(planned_for,priority,rank,id)  -- Removed Planned_for from ranking as this isn't used in RTC and probably doesn't make sense for product backlog
-	row[rank_column]='%06x:%s:%08x'%(priority,rank,id)
+#	row[rank_column]='%06x:%06x:%13s:%08x'%(planned_for,priority,rank,id)  -- Removed Planned_for from ranking as this isn't used in RTC and probably doesn't make sense for product backlog
+	row[rank_column]='%06x.%s.%08x'%(priority,rank,id) # dots used as separators as they come before 0 in ascii.  short string comes before longer one.
 	row[parent_column] = row[parent_column].lstrip('#')	# clean up parent_column id_column
 	points = row[storypts_column].split(' ')[0]	# clean up story points
 	if points is '':
@@ -267,12 +282,14 @@ accumulated_earnt_points_column=len(header)-1
 header.append("Percent Complete")
 percent_complete_column=len(header)-1
 
-x_grouped_sheet = print_header(x_grouped_sheet,header, grouped_worksheet)
+x_grouped_sheet = print_header(x_grouped_sheet,header, grouped_worksheet,True)
+	
 search_children(None,0)		# creates grouping and writes to grouped worksheet
 
-x_ranked_sheet = print_header(x_ranked_sheet,header, ranked_worksheet)
+x_ranked_sheet = print_header(x_ranked_sheet,header, ranked_worksheet,True)
 for row in data:
-	x_ranked_sheet = print_a_row(x_ranked_sheet,row, ranked_worksheet)	# writes to ranked worksheet
+	if check_filters(row):
+		x_ranked_sheet = print_a_row(x_ranked_sheet,row, ranked_worksheet)	# writes to ranked worksheet
 
 print("Closing...")
 try:

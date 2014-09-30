@@ -31,6 +31,22 @@
 		"Implementing":{"color":"#00ff77"},
 		"Implemented":{"color":"#00ffbb"}
 	},
+	"Progress":{
+		"In Progress" : 0.25,
+		"Implemented" : 0.75,
+		"Done" : 1.0
+	},
+	"Filters": {
+		"Status":["Invalid","Rejected"],
+		"Type":["Defect","Task"]
+	},
+	"Hidden": [
+		"Parent",
+		"Rank (relative to Priority)",
+		"Modified Date",
+		"Owned By",
+		"Filed Against"
+	],
 	"Hyperlink":"https://clm.bdc6.aess.accenture.com/ccm1/web/projects/Managed%20Services%20-%20Asset#action=com.ibm.team.workitem.viewWorkItem&id="
 }
 
