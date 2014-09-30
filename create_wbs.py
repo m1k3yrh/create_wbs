@@ -38,7 +38,8 @@ grouped_worksheet.outline_settings(True, False, False, True)	# displays the grou
 ranked_worksheet = workbook.add_worksheet('Ranked')	#creates a worksheet for ranking
 input_worksheet = workbook.add_worksheet('Input')	#creates a worksheet for regurgitating input
 error_worksheet = workbook.add_worksheet('Errors') # workbook for all suspicious data found from input
-error_worksheet.set_tab_color('green')
+error_sheet_color='green'
+
 
 # format variables
 percent_complete_format = workbook.add_format()
@@ -172,6 +173,18 @@ def search_children(acurrent,depth):
 		print_a_row(myx,acurrent,grouped_worksheet,depth)				
 	return {'child_pts':mypts+childpts,'completed_child_points':my_completed_points+completed_child_points}	# base call to return story point for current
 
+
+# Checks if the status has risen (green,orange, red)
+def set_error_sheet_color(status):
+	global error_sheet_color
+	
+	if error_sheet_color=='red':
+		return # already at max level.
+	else:
+		error_sheet_color=status
+		error_worksheet.set_tab_color(error_sheet_color)
+	return	
+
 # Check that all items in data have parents in data as well
 def missing_parents_report():
 	global x_error_sheet
@@ -180,7 +193,7 @@ def missing_parents_report():
 	for id in parent_list:
 		if not id=="" and not id in id_dictionary:
 			if not is_error:
-				error_worksheet.set_tab_color('red')
+				set_error_sheet_color('red')
 				error_worksheet.write(x_error_sheet,0,
 									"Fatal: The follow items don't have parents in the input file.  Data will be missing from WBS",error_format)
 				x_error_sheet+=1
@@ -190,7 +203,92 @@ def missing_parents_report():
 	return is_error
 
 def wrong_state_report():
-	print('hello')
+	global x_error_sheet
+
+	filtered_rows=[row for row in data if not check_filters(row)]
+	is_warning=False
+	for row in filtered_rows:
+		try:
+			if row[status_column] in ["New"] and row[accumulated_earnt_points_column]>0:
+				if is_warning==False:
+					set_error_sheet_color('orange')
+					error_worksheet.write(x_error_sheet,0,
+										"Warning: The follow items are marked new but have children with progress",error_format)
+					x_error_sheet+=1
+					is_warning=True
+				x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
+		except IndexError:
+			continue # will occasionally fail if accumulated points wasn't calculated on items because they weren't part of tree structure (problems reported via "missing parents report"
+
+	is_warning=False
+	for row in filtered_rows:
+		try:
+			if not row[status_column] in ["Done","Implemented"] and row[percent_complete_column]>0.99:
+				if is_warning==False:
+					set_error_sheet_color('orange')
+					error_worksheet.write(x_error_sheet,0,
+										"Warning: The follow items are have all children complete but are still in early progress",error_format)
+					x_error_sheet+=1
+					is_warning=True
+				x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
+		except (IndexError,TypeError):
+			continue # will occasionally fail if accumulated points wasn't calculated on items because they weren't part of tree structure (problems reported via "missing parents report"
+	
+	is_warning=False
+	for row in filtered_rows:
+		try:
+			if row[status_column] in ["Impeded"]:
+				unimpeded_children=[row for row in parent_list[row[id_column]] if not row[status_column] in ["Impeded"]]
+				if not unimpeded_children==[]:
+					if is_warning==False:
+						set_error_sheet_color('orange')
+						error_worksheet.write(x_error_sheet,0,
+											"Warning: The follow items have open children even though the parent is Impeded",error_format)
+						x_error_sheet+=1
+						is_warning=True
+					x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
+		except (KeyError):
+			continue # KeyError occurs if item has no children
+
+	is_warning=False
+	for row in filtered_rows:
+		try:
+			if not row[status_column] in ["Impeded"]:
+				unimpeded_children=[row for row in parent_list[row[id_column]] if not row[status_column] in ["Impeded"]]
+				if unimpeded_children==[]:
+					if is_warning==False:
+						set_error_sheet_color('orange')
+						error_worksheet.write(x_error_sheet,0,
+											"Warning: The follow items are open even though all children are Impeded",error_format)
+						x_error_sheet+=1
+						is_warning=True
+					x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
+		except (KeyError):
+			continue # KeyError occurs if item has no children
+	
+	is_warning=False
+	for row in filtered_rows:
+		if row[type_column] in ['Epic','Feature','Story'] and not row[planned_for_column] in ['Backlog']:
+			if is_warning==False:
+				set_error_sheet_color('orange')
+				error_worksheet.write(x_error_sheet,0,
+									"Warning: The follow product items are not plannedFor Product Backlog",error_format)
+				x_error_sheet+=1
+				is_warning=True
+			x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
+	
+	is_warning=False
+	for row in filtered_rows:
+		if row[type_column] in ['Epic','Feature','Story'] and not row[filed_against_column] in ['Products/mWallet Product']:
+			if is_warning==False:
+				set_error_sheet_color('orange')
+				error_worksheet.write(x_error_sheet,0,
+									"Warning: The follow product items are not FiledAgainst Product Categories",error_format)
+				x_error_sheet+=1
+				is_warning=True
+			x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
+	
+	return
 
 ######################## Main starts here #####################
 #read the configuration
@@ -252,6 +350,11 @@ try:
 except:
 	print("Error: csv file must contain 'Planned For' attribute")
 	sys.exit(0)
+try:
+	filed_against_column = headers['Filed Against']
+except:
+	print("Error: csv file must contain 'Filed Against' attribute")
+	sys.exit(0)
 try:	
 	priority_column = headers['Priority']
 except:
@@ -288,49 +391,57 @@ except:
 	print("Error: csv file must contain 'Story Points' attribute")
 	sys.exit(0)
 
-print("Create Raw Sheet...")
-x_raw_sheet = print_header(x_raw_sheet,header, input_worksheet)
-for i,row in enumerate(data,1):
-	print_a_row(i,row, input_worksheet)	# write to input worksheet
-
-# Prep error sheet
-x_error_sheet = print_header(x_error_sheet,header, error_worksheet)
-
-# create dictionary for the header names and indices
-print("Cleaning Data...")
-for row in data:
-	try:
-		rank = row[rank_column].split(' ')[1]
-	except:
-		rank = 'z' # no rank assigned so give is very high ranking
-	priority=priority_order[row[priority_column]]
-	id=int(row[id_column])
-	row[rank_column]='%06x.%s.%08x'%(priority,rank,id) # dots used as separators as they come before 0 in ascii.  short string comes before longer one.
-	row[parent_column] = row[parent_column].lstrip('#')	# clean up parent_column id_column
-	points = row[storypts_column].split(' ')[0]	# clean up story points
-	if points is '':
-		points = 0
-	row[storypts_column] = int(points)
+try:
+	print("Create Raw Sheet...")
+	x_raw_sheet = print_header(x_raw_sheet,header, input_worksheet)
+	for i,row in enumerate(data,1):
+		print_a_row(i,row, input_worksheet)	# write to input worksheet
 	
-print("Sorting...")
-data.sort(key= itemgetter(rank_column)) #creates ranked list
-
-
-print("Creating Worksheets...")
-
-
-x_grouped_sheet = print_header(x_grouped_sheet,header, grouped_worksheet,hidden=True)
+	# Prep error sheet
+	x_error_sheet = print_header(x_error_sheet,header, error_worksheet)
+	set_error_sheet_color(error_sheet_color)
 	
-id_dictionary={row[id_column]:row  for row in data if not check_filters(row)}
-create_parent_list_dictionary()
-
-missing_parents_report()
-search_children(None,0)		# creates grouping and writes to grouped worksheet
-
-x_ranked_sheet = print_header(x_ranked_sheet,header, ranked_worksheet,hidden=True)
-for row in data:
-	if not check_filters(row):
-		x_ranked_sheet = print_a_row(x_ranked_sheet,row, ranked_worksheet)	# writes to ranked worksheet
+	# create dictionary for the header names and indices
+	print("Cleaning Data...")
+	for row in data:
+		try:
+			rank = row[rank_column].split(' ')[1]
+		except:
+			rank = 'z' # no rank assigned so give is very high ranking
+		priority=priority_order[row[priority_column]]
+		id=int(row[id_column])
+		row[rank_column]='%06x.%s.%08x'%(priority,rank,id) # dots used as separators as they come before 0 in ascii.  short string comes before longer one.
+		row[parent_column] = row[parent_column].lstrip('#')	# clean up parent_column id_column
+		points = row[storypts_column].split(' ')[0]	# clean up story points
+		if points is '':
+			points = 0
+		row[storypts_column] = int(points)
+		
+	print("Sorting...")
+	data.sort(key= itemgetter(rank_column)) #creates ranked list
+	
+	
+	print("Creating Worksheets...")
+	
+	
+	x_grouped_sheet = print_header(x_grouped_sheet,header, grouped_worksheet,hidden=True)
+		
+	id_dictionary={row[id_column]:row  for row in data if not check_filters(row)}
+	create_parent_list_dictionary()
+	
+	search_children(None,0)		# creates grouping and writes to grouped worksheet
+	
+	x_ranked_sheet = print_header(x_ranked_sheet,header, ranked_worksheet,hidden=True)
+	for row in data:
+		if not check_filters(row):
+			x_ranked_sheet = print_a_row(x_ranked_sheet,row, ranked_worksheet)	# writes to ranked worksheet
+	
+	# check data consistency and report to Error tab
+	missing_parents_report()
+	wrong_state_report()
+except:
+	workbook.close() # close what we've achieved
+	raise # re-throw the error
 
 print("Closing...")
 try:
