@@ -48,7 +48,23 @@ configured_data={
 		"Owned By",
 		"Filed Against"
 	],
-	"Hyperlink":"https://clm.bdc6.aess.accenture.com/ccm1/web/projects/Managed%20Services%20-%20Asset#action=com.ibm.team.workitem.viewWorkItem&id="
+	"Hyperlink":"https://clm.bdc6.aess.accenture.com/ccm1/web/projects/Managed%20Services%20-%20Asset#action=com.ibm.team.workitem.viewWorkItem&id=",
+
+# Team Categories is list of all Categories that are linked to teams.  All Capabilities should be assigned to one of these	
+	"Team Categories":['Managed Services - Asset/mWallet/MLV_BL',
+'Managed Services - Asset/mWallet/MLV_CR_Emulators',
+'Managed Services - Asset/mWallet/MLV_GUI',
+'Managed Services - Asset/mWallet/MLV_MobileApps-Android',
+'Managed Services - Asset/mWallet/MLV_MobileApps-iOS',
+'Managed Services - Asset/mWallet/mWallet Design',
+'Managed Services - Asset/mWallet/RTAE'],
+# Team Work Items are kinds of Work Items that should be assigned to teams (and not to Product Categories)
+	"Team Work Items":['Capability','Task'],
+	
+# Product Work Items.  These should not be assigned to teams but to Product Categories
+	"Product Work Items":['Epic','Feature','Story'],
+# Product Categories: These are where Product Work Items should be assigned.
+	"Product Categories":['Products/mWallet Product']
 }
 
 

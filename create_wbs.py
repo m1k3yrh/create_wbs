@@ -279,11 +279,22 @@ def wrong_state_report():
 	
 	is_warning=False
 	for row in filtered_rows:
-		if row[type_column] in ['Epic','Feature','Story'] and not row[filed_against_column] in ['Products/mWallet Product']:
+		if row[type_column] in product_work_items and not row[filed_against_column] in product_categories:
 			if is_warning==False:
 				set_error_sheet_color('orange')
 				error_worksheet.write(x_error_sheet,0,
-									"Warning: The follow product items are not FiledAgainst Product Categories",error_format)
+									"Warning: The follow Product Items are not FiledAgainst Product Categories",error_format)
+				x_error_sheet+=1
+				is_warning=True
+			x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
+	
+	is_warning=False
+	for row in filtered_rows:
+		if row[type_column] in team_work_items and not row[filed_against_column] in team_categories:
+			if is_warning==False:
+				set_error_sheet_color('orange')
+				error_worksheet.write(x_error_sheet,0,
+									"Warning: The follow Team Items are not FiledAgainst Team Categories",error_format)
 				x_error_sheet+=1
 				is_warning=True
 			x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
@@ -313,7 +324,24 @@ try:
 	hyperlink_prefix=configured_data['Hyperlink']
 except KeyError:
 	hyperlink_prefix=None
-
+try:
+	team_categories=configured_data['Team Categories']
+except:
+	team_categories=None
+try:
+	team_work_items=configured_data['Team Work Items']
+except:
+	team_work_items=None
+try:
+	product_work_items=configured_data['Product Work Items']
+except:
+	product_work_items=None
+try:
+	product_categories=configured_data['Product Categories']
+except:
+	product_categories=None
+	
+	
 try:
 #	log_file = open('debug.txt', 'w')	#open debug output file to dump trace
 	print("Opening File...")
