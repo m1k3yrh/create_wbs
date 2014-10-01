@@ -206,98 +206,104 @@ def missing_parents_report():
 def wrong_state_report():
 	global x_error_sheet
 
-	is_warning=False
-	for row in filtered_data:
-		try:
-			if row[status_column] in new_states and row[accumulated_earnt_points_column]>0:
-				if is_warning==False:
-					set_error_sheet_color('orange')
-					error_worksheet.write(x_error_sheet,0,
-										"Warning: The follow items are marked new but have children with progress",error_format)
-					x_error_sheet+=1
-					is_warning=True
-				x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
-		except IndexError:
-			continue # will occasionally fail if accumulated points wasn't calculated on items because they weren't part of tree structure (problems reported via "missing parents report"
-
-	is_warning=False
-	for row in filtered_data:
-		try:
-			if not row[status_column] in completed_states and row[percent_complete_column]>0.99:
-				if is_warning==False:
-					set_error_sheet_color('orange')
-					error_worksheet.write(x_error_sheet,0,
-										"Warning: The follow items are have all children complete but are still in early progress",error_format)
-					x_error_sheet+=1
-					is_warning=True
-				x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
-		except (IndexError,TypeError):
-			continue # will occasionally fail if accumulated points wasn't calculated on items because they weren't part of tree structure (problems reported via "missing parents report"
-	
-	is_warning=False
-	for row in filtered_data:
-		try:
-			if row[status_column] in impeded_states:
-				unimpeded_children=[row for row in parent_list[row[id_column]] if not row[status_column] in impeded_states]
-				if not unimpeded_children==[]:
+	if new_states:
+		is_warning=False
+		for row in filtered_data:
+			try:
+				if row[status_column] in new_states and row[accumulated_earnt_points_column]>0:
 					if is_warning==False:
 						set_error_sheet_color('orange')
 						error_worksheet.write(x_error_sheet,0,
-											"Warning: The follow items have open children even though the parent is Impeded",error_format)
+											"Warning: The follow items are marked new but have children with progress",error_format)
 						x_error_sheet+=1
 						is_warning=True
 					x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
-		except (KeyError):
-			continue # KeyError occurs if item has no children
+			except IndexError:
+				continue # will occasionally fail if accumulated points wasn't calculated on items because they weren't part of tree structure (problems reported via "missing parents report"
 
-	is_warning=False
-	for row in filtered_data:
-		try:
-			if not row[status_column] in impeded_states:
-				unimpeded_children=[row for row in parent_list[row[id_column]] if not row[status_column] in impeded_states]
-				if unimpeded_children==[]:
+	if completed_states:
+		is_warning=False
+		for row in filtered_data:
+			try:
+				if not row[status_column] in completed_states and row[percent_complete_column]>0.99:
 					if is_warning==False:
 						set_error_sheet_color('orange')
 						error_worksheet.write(x_error_sheet,0,
-											"Warning: The follow items are open even though all children are Impeded",error_format)
+											"Warning: The follow items are have all children complete but are still in early progress",error_format)
 						x_error_sheet+=1
 						is_warning=True
 					x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
-		except (KeyError):
-			continue # KeyError occurs if item has no children
+			except (IndexError,TypeError):
+				continue # will occasionally fail if accumulated points wasn't calculated on items because they weren't part of tree structure (problems reported via "missing parents report"
 	
-	is_warning=False
-	for row in filtered_data:
-		if row[type_column] in product_work_items and not row[planned_for_column] in product_backlogs:
-			if is_warning==False:
-				set_error_sheet_color('orange')
-				error_worksheet.write(x_error_sheet,0,
-									"Warning: The follow product items are not plannedFor Product Backlog",error_format)
-				x_error_sheet+=1
-				is_warning=True
-			x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
+	if impeded_states:
+		is_warning=False
+		for row in filtered_data:
+			try:
+				if row[status_column] in impeded_states:
+					unimpeded_children=[row for row in parent_list[row[id_column]] if not row[status_column] in impeded_states]
+					if not unimpeded_children==[]:
+						if is_warning==False:
+							set_error_sheet_color('orange')
+							error_worksheet.write(x_error_sheet,0,
+												"Warning: The follow items have open children even though the parent is Impeded",error_format)
+							x_error_sheet+=1
+							is_warning=True
+						x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
+			except (KeyError):
+				continue # KeyError occurs if item has no children
+
+		is_warning=False
+		for row in filtered_data:
+			try:
+				if not row[status_column] in impeded_states:
+					unimpeded_children=[row for row in parent_list[row[id_column]] if not row[status_column] in impeded_states]
+					if unimpeded_children==[]:
+						if is_warning==False:
+							set_error_sheet_color('orange')
+							error_worksheet.write(x_error_sheet,0,
+												"Warning: The follow items are open even though all children are Impeded",error_format)
+							x_error_sheet+=1
+							is_warning=True
+						x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
+			except (KeyError):
+				continue # KeyError occurs if item has no children
 	
-	is_warning=False
-	for row in filtered_data:
-		if row[type_column] in product_work_items and not row[filed_against_column] in product_categories:
-			if is_warning==False:
-				set_error_sheet_color('orange')
-				error_worksheet.write(x_error_sheet,0,
-									"Warning: The follow Product Items are not FiledAgainst Product Categories",error_format)
-				x_error_sheet+=1
-				is_warning=True
-			x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
+	if product_work_items and product_backlogs:
+		is_warning=False
+		for row in filtered_data:
+			if row[type_column] in product_work_items and not row[planned_for_column] in product_backlogs:
+				if is_warning==False:
+					set_error_sheet_color('orange')
+					error_worksheet.write(x_error_sheet,0,
+										"Warning: The follow product items are not plannedFor Product Backlog",error_format)
+					x_error_sheet+=1
+					is_warning=True
+				x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
 	
-	is_warning=False
-	for row in filtered_data:
-		if row[type_column] in team_work_items and not row[filed_against_column] in team_categories:
-			if is_warning==False:
-				set_error_sheet_color('orange')
-				error_worksheet.write(x_error_sheet,0,
-									"Warning: The follow Team Items are not FiledAgainst Team Categories",error_format)
-				x_error_sheet+=1
-				is_warning=True
-			x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
+	if product_work_items and product_categories:
+		is_warning=False
+		for row in filtered_data:
+			if row[type_column] in product_work_items and not row[filed_against_column] in product_categories:
+				if is_warning==False:
+					set_error_sheet_color('orange')
+					error_worksheet.write(x_error_sheet,0,
+										"Warning: The follow Product Items are not FiledAgainst Product Categories",error_format)
+					x_error_sheet+=1
+					is_warning=True
+				x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
+	
+	if team_work_items and team_categories:
+		is_warning=False
+		for row in filtered_data:
+			if row[type_column] in team_work_items and not row[filed_against_column] in team_categories:
+				if is_warning==False:
+					set_error_sheet_color('orange')
+					error_worksheet.write(x_error_sheet,0,
+										"Warning: The follow Team Items are not FiledAgainst Team Categories",error_format)
+					x_error_sheet+=1
+					is_warning=True
+				x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
 	
 	return
 
