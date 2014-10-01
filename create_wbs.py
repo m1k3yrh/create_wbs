@@ -65,13 +65,16 @@ parent_list={}
 
 def load_cell_formats():
 	global formats
-	configs=configured_data['Format']
-	for config_key,config_value in configs.items():
-		try:
-			formats[config_key]=workbook.add_format(config_value)
-		except:
-			print("json format error:  Couldn't parse:",config_value)
-			sys.exit(-1)
+	try:
+		configs=load_config('Format')
+		for config_key,config_value in configs.items():
+			try:
+				formats[config_key]=workbook.add_format(config_value)
+			except:
+				print("config format error:  Couldn't parse:",config_value)
+				sys.exit(-1)
+	except:
+		formats=None
 	
 def set_cell_format(cell_value):
 	try:
@@ -118,19 +121,17 @@ def create_parent_list_dictionary():
 	global parent_list
 	global id_dictionary
 	
-	for row in data:
-		if not check_filters(row): # Ignore everything which filters say to ignore
-			parent=row[parent_column]
-			if parent in parent_list:
-				parent_list[parent].append(row) # add to list against key parent
-			else:
-				parent_list[parent]=[row] # Create a new list against key parent
+	for row in filtered_data:
+		parent=row[parent_column]
+		if parent in parent_list:
+			parent_list[parent].append(row) # add to list against key parent
+		else:
+			parent_list[parent]=[row] # Create a new list against key parent
 
 
 # function to recursively group children in work break down structure and write to output file
 def search_children(acurrent,depth): 
 	global x_grouped_sheet
-	global data
 	
 	mypts = 0
 	my_completed_points=0
@@ -205,11 +206,10 @@ def missing_parents_report():
 def wrong_state_report():
 	global x_error_sheet
 
-	filtered_rows=[row for row in data if not check_filters(row)]
 	is_warning=False
-	for row in filtered_rows:
+	for row in filtered_data:
 		try:
-			if row[status_column] in ["New"] and row[accumulated_earnt_points_column]>0:
+			if row[status_column] in new_states and row[accumulated_earnt_points_column]>0:
 				if is_warning==False:
 					set_error_sheet_color('orange')
 					error_worksheet.write(x_error_sheet,0,
@@ -221,9 +221,9 @@ def wrong_state_report():
 			continue # will occasionally fail if accumulated points wasn't calculated on items because they weren't part of tree structure (problems reported via "missing parents report"
 
 	is_warning=False
-	for row in filtered_rows:
+	for row in filtered_data:
 		try:
-			if not row[status_column] in ["Done","Implemented"] and row[percent_complete_column]>0.99:
+			if not row[status_column] in completed_states and row[percent_complete_column]>0.99:
 				if is_warning==False:
 					set_error_sheet_color('orange')
 					error_worksheet.write(x_error_sheet,0,
@@ -235,10 +235,10 @@ def wrong_state_report():
 			continue # will occasionally fail if accumulated points wasn't calculated on items because they weren't part of tree structure (problems reported via "missing parents report"
 	
 	is_warning=False
-	for row in filtered_rows:
+	for row in filtered_data:
 		try:
-			if row[status_column] in ["Impeded"]:
-				unimpeded_children=[row for row in parent_list[row[id_column]] if not row[status_column] in ["Impeded"]]
+			if row[status_column] in impeded_states:
+				unimpeded_children=[row for row in parent_list[row[id_column]] if not row[status_column] in impeded_states]
 				if not unimpeded_children==[]:
 					if is_warning==False:
 						set_error_sheet_color('orange')
@@ -251,10 +251,10 @@ def wrong_state_report():
 			continue # KeyError occurs if item has no children
 
 	is_warning=False
-	for row in filtered_rows:
+	for row in filtered_data:
 		try:
-			if not row[status_column] in ["Impeded"]:
-				unimpeded_children=[row for row in parent_list[row[id_column]] if not row[status_column] in ["Impeded"]]
+			if not row[status_column] in impeded_states:
+				unimpeded_children=[row for row in parent_list[row[id_column]] if not row[status_column] in impeded_states]
 				if unimpeded_children==[]:
 					if is_warning==False:
 						set_error_sheet_color('orange')
@@ -267,8 +267,8 @@ def wrong_state_report():
 			continue # KeyError occurs if item has no children
 	
 	is_warning=False
-	for row in filtered_rows:
-		if row[type_column] in ['Epic','Feature','Story'] and not row[planned_for_column] in ['Backlog']:
+	for row in filtered_data:
+		if row[type_column] in product_work_items and not row[planned_for_column] in product_backlogs:
 			if is_warning==False:
 				set_error_sheet_color('orange')
 				error_worksheet.write(x_error_sheet,0,
@@ -278,7 +278,7 @@ def wrong_state_report():
 			x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
 	
 	is_warning=False
-	for row in filtered_rows:
+	for row in filtered_data:
 		if row[type_column] in product_work_items and not row[filed_against_column] in product_categories:
 			if is_warning==False:
 				set_error_sheet_color('orange')
@@ -289,7 +289,7 @@ def wrong_state_report():
 			x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
 	
 	is_warning=False
-	for row in filtered_rows:
+	for row in filtered_data:
 		if row[type_column] in team_work_items and not row[filed_against_column] in team_categories:
 			if is_warning==False:
 				set_error_sheet_color('orange')
@@ -301,47 +301,46 @@ def wrong_state_report():
 	
 	return
 
+def load_config(key):
+	try:
+		return configured_data[key]
+	except:
+		return None
+	
+def find_column(key):
+	try:
+		return headers[key]
+	except:
+		print("Error: csv file must contain '%s' attribute"%(key))
+		sys.exit(0)
+
 ######################## Main starts here #####################
 #read the configuration
-load_cell_formats()
-header_format=formats['Header']
-error_format=formats['Error_Item']
 planned_for_order={value:key for key,value in enumerate(configured_data['Planned For'])}
 priority_order={value:key for key,value in enumerate(configured_data['Priority'])}
+
+load_cell_formats()
 try:
-	progress_table=configured_data['Progress']
+	header_format=formats['Header']
 except:
-	progress_table=None
+	header_format=None
 try:
-	filters=configured_data['Filters']
+	error_format=formats['Error_Item']
 except:
-	filters=None
-try:
-	hidden_columns=configured_data['Hidden']
-except:
-	hidden_columns=None
-try:
-	hyperlink_prefix=configured_data['Hyperlink']
-except KeyError:
-	hyperlink_prefix=None
-try:
-	team_categories=configured_data['Team Categories']
-except:
-	team_categories=None
-try:
-	team_work_items=configured_data['Team Work Items']
-except:
-	team_work_items=None
-try:
-	product_work_items=configured_data['Product Work Items']
-except:
-	product_work_items=None
-try:
-	product_categories=configured_data['Product Categories']
-except:
-	product_categories=None
-	
-	
+	error_format=None
+progress_table=load_config('Progress')
+filters=load_config('Filters')
+hidden_columns=load_config('Hidden')
+hyperlink_prefix=load_config('Hyperlink')
+team_categories=load_config('Team Categories')
+team_work_items=load_config('Team Work Items')
+product_work_items=load_config('Product Work Items')
+product_categories=load_config('Product Categories')
+product_backlogs=load_config('Product Backlogs')
+impeded_states=load_config('Impeded States')
+completed_states=load_config('Completed States')
+new_states=load_config('New States')
+
 try:
 #	log_file = open('debug.txt', 'w')	#open debug output file to dump trace
 	print("Opening File...")
@@ -359,8 +358,6 @@ for r in reader:	# creates a list of row items
 
 # Split input into header and data
 header = input[0]	#extract the header from the top row
-data = input[1:]	#extract all the work items
-
 # Add columns for calculated values to header
 header.append("Earned Story Points")
 earned_story_points_column=len(header)-1
@@ -373,51 +370,20 @@ percent_complete_column=len(header)-1
 #create enumerated dictionary of header to help finding columns
 headers={value:key for key,value in enumerate(header)}
 #Find the special columns needed for processing
-try:
-	planned_for_column = headers['Planned For']
-except:
-	print("Error: csv file must contain 'Planned For' attribute")
-	sys.exit(0)
-try:
-	filed_against_column = headers['Filed Against']
-except:
-	print("Error: csv file must contain 'Filed Against' attribute")
-	sys.exit(0)
-try:	
-	priority_column = headers['Priority']
-except:
-	print("Error: csv file must contain 'Priority' attribute")
-	sys.exit(0)
-try:	
-	rank_column = headers['Rank (relative to Priority)']
-except:
-	print("Error: csv file must contain 'Rank (relative to Priority)' attribute")
-	sys.exit(0)
-try:
-	id_column = headers['Id']
-except:
-	print("Error: csv file must contain 'Id' attribute")
-	sys.exit(0)
-try:
-	parent_column = headers['Parent']
-except:
-	print("Error: csv file must contain 'Parent' attribute")
-	sys.exit(0)
-try:
-	type_column = headers['Type']
-except:
-	print("Error: csv file must contain 'Type' attribute")
-	sys.exit(0)
-try:
-	status_column = headers['Status']
-except:
-	print("Error: csv file must contain 'Status' attribute")
-	sys.exit(0)
-try:
-	storypts_column = headers['Story Points']
-except:
-	print("Error: csv file must contain 'Story Points' attribute")
-	sys.exit(0)
+planned_for_column = find_column('Planned For')
+filed_against_column = find_column('Filed Against')
+priority_column = find_column('Priority')
+rank_column = find_column('Rank (relative to Priority)')
+id_column = find_column('Id')
+parent_column = find_column('Parent')
+type_column = find_column('Type')
+status_column = find_column('Status')
+storypts_column = find_column('Story Points')
+
+#
+data = input[1:]	#extract all the work items
+filtered_data=[row for row in data if not check_filters(row)]
+
 
 try:
 	print("Create Raw Sheet...")
@@ -431,7 +397,7 @@ try:
 	
 	# create dictionary for the header names and indices
 	print("Cleaning Data...")
-	for row in data:
+	for row in filtered_data:
 		try:
 			rank = row[rank_column].split(' ')[1]
 		except:
@@ -446,7 +412,7 @@ try:
 		row[storypts_column] = int(points)
 		
 	print("Sorting...")
-	data.sort(key= itemgetter(rank_column)) #creates ranked list
+	filtered_data.sort(key= itemgetter(rank_column)) #creates ranked list
 	
 	
 	print("Creating Worksheets...")
@@ -454,15 +420,14 @@ try:
 	
 	x_grouped_sheet = print_header(x_grouped_sheet,header, grouped_worksheet,hidden=True)
 		
-	id_dictionary={row[id_column]:row  for row in data if not check_filters(row)}
+	id_dictionary={row[id_column]:row  for row in filtered_data}
 	create_parent_list_dictionary()
 	
 	search_children(None,0)		# creates grouping and writes to grouped worksheet
 	
 	x_ranked_sheet = print_header(x_ranked_sheet,header, ranked_worksheet,hidden=True)
-	for row in data:
-		if not check_filters(row):
-			x_ranked_sheet = print_a_row(x_ranked_sheet,row, ranked_worksheet)	# writes to ranked worksheet
+	for row in filtered_data:
+		x_ranked_sheet = print_a_row(x_ranked_sheet,row, ranked_worksheet)	# writes to ranked worksheet
 	
 	# check data consistency and report to Error tab
 	missing_parents_report()
