@@ -84,11 +84,12 @@ def set_cell_format(cell_value):
 	
 # Test the Filters to see if any of the columns match
 def check_filters(arow):
-	for key,filter in filters.items():
-		y=headers[key]
-		if arow[y] in filter:
-			return True
-	return False
+	if filters:
+		for key,filter in filters.items():
+			y=headers[key]
+			if arow[y] in filter:
+				return True
+		return False
 		
 # function to write a row to the output file
 # function returns the index for the next available row
@@ -111,7 +112,7 @@ def print_a_row(ax,arow,aworksheet,depth=0):
 def print_header(ax,arow,aworksheet,hidden=False): 
 	for y,col in enumerate(arow):	
 		aworksheet.write(ax,y,col,header_format)
-		if hidden and col in hidden_columns:
+		if hidden and hidden_columns and col in hidden_columns:
 			aworksheet.set_column(y,y,None,None,{'hidden':True})
 	ax +=1
 	return ax
