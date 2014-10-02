@@ -204,14 +204,14 @@ def missing_parents_report():
 	is_error=False
 	for id in parent_list:
 		if not id=="" and not id in id_dictionary:
+#Note: (not id=="") above is to ignore roots (items with no parent.
 			if not is_error:
 				set_error_sheet_color('red')
 				error_worksheet.write(x_error_sheet,0,
 									"Fatal: The follow items don't have parents in the input file.  Data will be missing from WBS",error_format)
 				x_error_sheet+=1
 				is_error=True
-			for item in parent_list[id]:
-				x_error_sheet=print_a_row(x_error_sheet,item,error_worksheet)
+			x_error_sheet=print_list(x_error_sheet,parent_list[id],error_worksheet)
 	return is_error
 
 # Optional checks done on data to check that items are in correct location and state based on progress etc.
