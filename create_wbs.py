@@ -346,8 +346,11 @@ def create_iteration_team_report():
 			if team_categories: # Only create a Category row if team_categories is defined
 				worksheet.write(x,0,f)
 				worksheet.set_row(x, None, None, {'level': 1,'collapsed':True})		# sets the grouping level for this row
-			fx=x # remember the FiledAgainst row so can add data later
-			x+=1
+				fx=x # remember the FiledAgainst row so can add data later
+				x+=1
+				depth=2
+			else:
+				depth=1
 			category_total_pts=0.0
 			category_earned_pts=0.0
 			try:
@@ -356,18 +359,22 @@ def create_iteration_team_report():
 				pass # Nothing to print for this combination
 			else:
 				for row in l: # Add up points from all the children
-					category_total_pts+=row[accumulated_story_points_column]
-					category_earned_pts+=row[accumulated_earnt_points_column]
-					x=print_a_row(x,row,worksheet,depth=2,options={'hidden':True})
+					try:
+						category_total_pts+=row[storypts_column] 
+						category_earned_pts+=row[earned_story_points_column]
+# Note: We only add points belonging to this object (not accumulated points which includes children) to prevent double counting.
+					except IndexError:
+						pass # Ignore index error.  Occurs when an item has parents which are not in data set.  A Fatal error is reported to Error Sheet
+					x=print_a_row(x,row,worksheet,depth=depth,options={'hidden':True})
 			if team_categories: # Only update the Category row if team_categories is defined
-				worksheet.write(fx,accumulated_story_points_column,category_total_pts)
-				worksheet.write(fx,accumulated_earnt_points_column,category_earned_pts)
-			if category_total_pts: # Avoid div_zero.  Don't calculate percent if there is no points.
-				worksheet.write(fx,percent_complete_column,category_earned_pts/category_total_pts,percent_complete_format)
+				worksheet.write(fx,storypts_column,category_total_pts)
+				worksheet.write(fx,earned_story_points_column,category_earned_pts)
+				if category_total_pts: # Avoid div_zero.  Don't calculate percent if there is no points.
+					worksheet.write(fx,percent_complete_column,category_earned_pts/category_total_pts,percent_complete_format)
 			iteration_total_pts+=category_total_pts
 			iteration_earned_pts+=category_earned_pts
-		worksheet.write(px,accumulated_story_points_column,iteration_total_pts)
-		worksheet.write(px,accumulated_earnt_points_column,iteration_earned_pts)
+		worksheet.write(px,storypts_column,iteration_total_pts)
+		worksheet.write(px,earned_story_points_column,iteration_earned_pts)
 		if iteration_total_pts: # Avoid div_zero.  Don't calculate percent if there is no points.
 			worksheet.write(px,percent_complete_column,iteration_earned_pts/iteration_total_pts,percent_complete_format)
 
