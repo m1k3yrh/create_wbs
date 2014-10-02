@@ -67,14 +67,14 @@ def load_cell_formats():
 	global formats
 	try:
 		configs=load_config('Format')
-		for config_key,config_value in configs.items():
-			try:
-				formats[config_key]=workbook.add_format(config_value)
-			except:
-				print("config format error:  Couldn't parse:",config_value)
-				sys.exit(-1)
 	except:
 		formats=None
+	else:
+		try:
+			formats={config_key:workbook.add_format(config_value) for config_key,config_value in configs.items()}
+		except:
+			print("config format error:  Couldn't parse:",config_value)
+			sys.exit(-1)
 	
 def set_cell_format(cell_value):
 	try:
