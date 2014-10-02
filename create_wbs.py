@@ -107,6 +107,12 @@ def print_a_row(ax,arow,aworksheet,depth=0):
 	ax +=1
 	return ax
 
+# print a list of rows
+def print_list(ax,alist,aworksheet,depth=0):
+	for row in alist:
+		ax=print_a_row(ax,row,aworksheet,depth)
+	return ax
+
 # function to write a row to the output file
 # function returns the index for the next available row
 def print_header(ax,arow,aworksheet,hidden=False): 
@@ -204,38 +210,29 @@ def missing_parents_report():
 				x_error_sheet=print_a_row(x_error_sheet,item,error_worksheet)
 	return is_error
 
+# Optional checks done on data to check that items are in correct location and state based on progress etc.
 def wrong_state_report():
 	global x_error_sheet
 
 	if new_states:
-		is_warning=False
-		for row in filtered_data:
-			try:
-				if row[status_column] in new_states and row[accumulated_earnt_points_column]>0:
-					if is_warning==False:
-						set_error_sheet_color('orange')
-						error_worksheet.write(x_error_sheet,0,
-											"Warning: The follow items are marked new but have children with progress",error_format)
-						x_error_sheet+=1
-						is_warning=True
-					x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
-			except IndexError:
-				continue # will occasionally fail if accumulated points wasn't calculated on items because they weren't part of tree structure (problems reported via "missing parents report"
+		list=[row for row in filtered_data
+				if row[status_column] in new_states and len(row)>accumulated_earnt_points_column and row[accumulated_earnt_points_column]>0]
+		if list:
+			set_error_sheet_color('orange')
+			error_worksheet.write(x_error_sheet,0,
+								"Warning: The follow items are marked new but have children with progress",error_format)
+			x_error_sheet+=1
+			x_error_sheet=print_list(x_error_sheet,list,error_worksheet)
 
 	if completed_states:
-		is_warning=False
-		for row in filtered_data:
-			try:
-				if not row[status_column] in completed_states and row[percent_complete_column]>0.99:
-					if is_warning==False:
-						set_error_sheet_color('orange')
-						error_worksheet.write(x_error_sheet,0,
-											"Warning: The follow items are have all children complete but are still in early progress",error_format)
-						x_error_sheet+=1
-						is_warning=True
-					x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
-			except (IndexError,TypeError):
-				continue # will occasionally fail if accumulated points wasn't calculated on items because they weren't part of tree structure (problems reported via "missing parents report"
+		list=[row for row in filtered_data if not row[status_column] in completed_states and len(row)>percent_complete_column \
+													and row[percent_complete_column]!='' and row[percent_complete_column]>0.99]
+		if list:
+			set_error_sheet_color('orange')
+			error_worksheet.write(x_error_sheet,0,
+								"Warning: The follow items are have all children complete but are still in early progress",error_format)
+			x_error_sheet+=1
+			x_error_sheet=print_list(x_error_sheet,list,error_worksheet)
 	
 	if impeded_states:
 		is_warning=False
@@ -271,40 +268,32 @@ def wrong_state_report():
 				continue # KeyError occurs if item has no children
 	
 	if product_work_items and product_backlogs:
-		is_warning=False
-		for row in filtered_data:
-			if row[type_column] in product_work_items and not row[planned_for_column] in product_backlogs:
-				if is_warning==False:
-					set_error_sheet_color('orange')
-					error_worksheet.write(x_error_sheet,0,
-										"Warning: The follow product items are not plannedFor Product Backlog",error_format)
-					x_error_sheet+=1
-					is_warning=True
-				x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
+		list=[row for row in filtered_data if row[type_column] in product_work_items and not row[planned_for_column] in product_backlogs]
+		if list:
+			set_error_sheet_color('orange')
+			error_worksheet.write(x_error_sheet,0,
+								"Warning: The follow product items are not plannedFor Product Backlog",error_format)
+			x_error_sheet+=1
+			x_error_sheet=print_list(x_error_sheet,list,error_worksheet)
 	
 	if product_work_items and product_categories:
 		is_warning=False
-		for row in filtered_data:
-			if row[type_column] in product_work_items and not row[filed_against_column] in product_categories:
-				if is_warning==False:
-					set_error_sheet_color('orange')
-					error_worksheet.write(x_error_sheet,0,
-										"Warning: The follow Product Items are not FiledAgainst Product Categories",error_format)
-					x_error_sheet+=1
-					is_warning=True
-				x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
+		list=[row for row in filtered_data if row[type_column] in product_work_items and not row[filed_against_column] in product_categories]
+		if list:
+			set_error_sheet_color('orange')
+			error_worksheet.write(x_error_sheet,0,
+								"Warning: The follow Product Items are not FiledAgainst Product Categories",error_format)
+			x_error_sheet+=1
+			x_error_sheet=print_list(x_error_sheet,list,error_worksheet)
 	
 	if team_work_items and team_categories:
-		is_warning=False
-		for row in filtered_data:
-			if row[type_column] in team_work_items and not row[filed_against_column] in team_categories:
-				if is_warning==False:
-					set_error_sheet_color('orange')
-					error_worksheet.write(x_error_sheet,0,
-										"Warning: The follow Team Items are not FiledAgainst Team Categories",error_format)
-					x_error_sheet+=1
-					is_warning=True
-				x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
+		list=[row for row in filtered_data if row[type_column] in team_work_items and not row[filed_against_column] in team_categories]
+		if list:
+			set_error_sheet_color('orange')
+			error_worksheet.write(x_error_sheet,0,
+								"Warning: The follow Team Items are not FiledAgainst Team Categories",error_format)
+			x_error_sheet+=1
+			x_error_sheet=print_list(x_error_sheet,list,error_worksheet)
 	
 	return
 
@@ -358,10 +347,7 @@ except IOError:
 
 print("Reading File...")
 reader = csv.reader(input_file,delimiter='\t')  # creates the reader 
-
-input = list()
-for r in reader:	# creates a list of row items
-	input.append(r)
+input = [r for r in reader]
 
 # Split input into header and data
 header = input[0]	#extract the header from the top row
@@ -408,7 +394,7 @@ try:
 		try:
 			rank = row[rank_column].split(' ')[1]
 		except:
-			rank = 'z' # no rank assigned so give is very high ranking
+			rank = 'z' # no rank assigned so give is very high ranking (i.e bottom of list)
 		priority=priority_order[row[priority_column]]
 		id=int(row[id_column])
 		row[rank_column]='%06x.%s.%08x'%(priority,rank,id) # dots used as separators as they come before 0 in ascii.  short string comes before longer one.
