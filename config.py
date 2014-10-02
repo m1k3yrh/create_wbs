@@ -50,8 +50,13 @@ configured_data={ # Do not change this line.  All configuration is kept within t
 # Wildcards are not supported at this stage.
 # See http://xlsxwriter.readthedocs.org/en/latest/working_with_formats.html for description how to set formats for below
 	"Format":{
+# Special row formatting rules
 		"Header":{"font":"Times New Roman","size":15,"bold":1,"color":"blue"},
 		"Error_Item":{"font":"Times New Roman","size":20,"bold":1},
+		"Iteration_Summary":{"font":"Times New Roman","size":16,"bold":1},
+		"Category_Summary":{"font":"Times New Roman","size":14,"italic":1},
+
+# String match formatting rules
 		"Capability":{"font":"Times New Roman","size":10},
 		"Defect":{"font":"Times New Roman","size":10},
 		"Epic":{"font":"Times New Roman","size":16,"italic":1},

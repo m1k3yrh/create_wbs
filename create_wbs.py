@@ -362,14 +362,14 @@ def create_iteration_team_report():
 			d[t]=[row]
 			
 	for p in planned_for_list:
-		iteration_report_worksheet.write(x,0,p)
+		iteration_report_worksheet.write(x,0,p,iteration_summary_format)
 		px=x # Remember the Iteration Row (aka PlannedFor) so can add data later
 		x+=1
 		iteration_total_pts=0.0
 		iteration_earned_pts=0.0
 		for f in tc:
 			if team_categories: # Only create a Category row if team_categories is defined
-				iteration_report_worksheet.write(x,0,f)
+				iteration_report_worksheet.write(x,0,f,category_summary_format)
 				iteration_report_worksheet.set_row(x, None, None, {'level': 1,'collapsed':True})		# sets the grouping level for this row
 				fx=x # remember the FiledAgainst row so can add data later
 				x+=1
@@ -433,6 +433,15 @@ try:
 	error_format=formats['Error_Item']
 except:
 	error_format=None
+try:
+	iteration_summary_format=formats['Iteration_Summary']
+except:
+	iteration_summary_format=None
+try:
+	category_summary_format=formats['Category_Summary']
+except:
+	category_summary_format=None
+	
 planned_for_list=load_config('Planned For')
 priority_list=load_config('Priority')
 if not planned_for_list or not priority_list:
