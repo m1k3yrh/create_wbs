@@ -319,45 +319,56 @@ def create_iteration_team_report():
 	worksheet.outline_settings(True, False, False, True)	# displays the grouping summary above
 	x=0
 	x=print_header(x,header,worksheet,hidden=True)
-	
+
+# Build a dictionary of everything in each Sprint/iteration	
 	d={}
+	if team_categories:
+		tc=team_categories
+	else:
+		tc=['all'] # Create a dummy team_categories
 	for row in filtered_data:
-		t=(row[planned_for_column],row[filed_against_column])
+		if team_categories:
+			t=(row[planned_for_column],row[filed_against_column])
+		else:
+			t=(row[planned_for_column],tc[0]) # If team_categories not defined, stuff everything in all
 		if t in d:
 			d[t].append(row)
 		else:
 			d[t]=[row]
+			
 	for p in planned_for_list:
 		worksheet.write(x,0,p)
 		px=x # Remember the Iteration Row (aka PlannedFor) so can add data later
 		x+=1
 		iteration_total_pts=0.0
 		iteration_earned_pts=0.0
-		for f in team_categories:
-			worksheet.write(x,0,f)
-			worksheet.set_row(x, None, None, {'level': 1,'collapsed':True})		# sets the grouping level for this row
+		for f in tc:
+			if team_categories: # Only create a Category row if team_categories is defined
+				worksheet.write(x,0,f)
+				worksheet.set_row(x, None, None, {'level': 1,'collapsed':True})		# sets the grouping level for this row
 			fx=x # remember the FiledAgainst row so can add data later
 			x+=1
+			category_total_pts=0.0
+			category_earned_pts=0.0
 			try:
 				l=d[(p,f)]
 			except KeyError:
-				continue # Nothing to print for this combination
+				pass # Nothing to print for this combination
 			else:
-				category_total_pts=0.0
-				category_earned_pts=0.0
-				for row in l:
+				for row in l: # Add up points from all the children
 					category_total_pts+=row[accumulated_story_points_column]
 					category_earned_pts+=row[accumulated_earnt_points_column]
 					x=print_a_row(x,row,worksheet,depth=2,options={'hidden':True})
+			if team_categories: # Only update the Category row if team_categories is defined
 				worksheet.write(fx,accumulated_story_points_column,category_total_pts)
 				worksheet.write(fx,accumulated_earnt_points_column,category_earned_pts)
-				if category_total_pts:
-					worksheet.write(fx,percent_complete_column,category_earned_pts/category_total_pts,percent_complete_format)
+			if category_total_pts: # Avoid div_zero.  Don't calculate percent if there is no points.
+				worksheet.write(fx,percent_complete_column,category_earned_pts/category_total_pts,percent_complete_format)
 			iteration_total_pts+=category_total_pts
 			iteration_earned_pts+=category_earned_pts
 		worksheet.write(px,accumulated_story_points_column,iteration_total_pts)
 		worksheet.write(px,accumulated_earnt_points_column,iteration_earned_pts)
-		if iteration_total_pts:
+		if iteration_total_pts: # Avoid div_zero.  Don't calculate percent if there is no points.
 			worksheet.write(px,percent_complete_column,iteration_earned_pts/iteration_total_pts,percent_complete_format)
 
 # Calculate ranking and clean up Parent and Story Points columns
