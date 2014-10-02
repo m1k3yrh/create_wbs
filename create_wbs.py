@@ -93,7 +93,7 @@ def check_filters(arow):
 		
 # function to write a row to the output file
 # function returns the index for the next available row
-def print_a_row(ax,arow,aworksheet,depth=0,format=True): 
+def print_a_row(ax,arow,aworksheet,depth=0,format=True,options={}): 
 	for i,y in enumerate(arow):
 		if format and ( i==id_column or i==parent_column ) and hyperlink_prefix!=None:
 			aworksheet.write_url(ax,i,hyperlink_prefix + y ,None, y )
@@ -105,15 +105,16 @@ def print_a_row(ax,arow,aworksheet,depth=0,format=True):
 			else:
 				cell_format=None
 			aworksheet.write(ax,i,y,cell_format)	
-			
-	aworksheet.set_row(ax, None, None, {'level': depth})		# sets the grouping level for this row
+	
+	options['level']=depth	
+	aworksheet.set_row(ax, None, None, options)		# sets the grouping level for this row
 	ax +=1
 	return ax
 
 # print a list of rows
-def print_list(ax,alist,aworksheet,depth=0,format=True):
+def print_list(ax,alist,aworksheet,depth=0,format=True,options={}):
 	for row in alist:
-		ax=print_a_row(ax,row,aworksheet,depth,format)
+		ax=print_a_row(ax,row,aworksheet,depth,format,options={})
 	return ax
 
 # function to write a row to the output file
@@ -312,11 +313,74 @@ def find_column(key):
 	except:
 		print("Error: csv file must contain '%s' attribute"%(key))
 		sys.exit(0)
+		
+def create_iteration_team_report():
+	worksheet = workbook.add_worksheet('Iteration Report')	#creates a worksheet for grouping
+	worksheet.outline_settings(True, False, False, True)	# displays the grouping summary above
+	x=0
+	x=print_header(x,header,worksheet,hidden=True)
+	
+	d={}
+	for row in filtered_data:
+		t=(row[planned_for_column],row[filed_against_column])
+		if t in d:
+			d[t].append(row)
+		else:
+			d[t]=[row]
+	for p in planned_for_list:
+		worksheet.write(x,0,p)
+		px=x # Remember the Iteration Row (aka PlannedFor) so can add data later
+		x+=1
+		iteration_total_pts=0.0
+		iteration_earned_pts=0.0
+		for f in team_categories:
+			worksheet.write(x,0,f)
+			worksheet.set_row(x, None, None, {'level': 1,'collapsed':True})		# sets the grouping level for this row
+			fx=x # remember the FiledAgainst row so can add data later
+			x+=1
+			try:
+				l=d[(p,f)]
+			except KeyError:
+				continue # Nothing to print for this combination
+			else:
+				category_total_pts=0.0
+				category_earned_pts=0.0
+				for row in l:
+					category_total_pts+=row[accumulated_story_points_column]
+					category_earned_pts+=row[accumulated_earnt_points_column]
+					x=print_a_row(x,row,worksheet,depth=2,options={'hidden':True})
+				worksheet.write(fx,accumulated_story_points_column,category_total_pts)
+				worksheet.write(fx,accumulated_earnt_points_column,category_earned_pts)
+				if category_total_pts:
+					worksheet.write(fx,percent_complete_column,category_earned_pts/category_total_pts,percent_complete_format)
+			iteration_total_pts+=category_total_pts
+			iteration_earned_pts+=category_earned_pts
+		worksheet.write(px,accumulated_story_points_column,iteration_total_pts)
+		worksheet.write(px,accumulated_earnt_points_column,iteration_earned_pts)
+		if iteration_total_pts:
+			worksheet.write(px,percent_complete_column,iteration_earned_pts/iteration_total_pts,percent_complete_format)
+
+# Calculate ranking and clean up Parent and Story Points columns
+def clean_data():
+	planned_for_order={value:key for key,value in enumerate(planned_for_list)}
+	priority_order={value:key for key,value in enumerate(priority_list)}
+	for row in filtered_data:
+		try:
+			rank = row[rank_column].split(' ')[1]
+		except:
+			rank = 'z' # no rank assigned so give is very high ranking (i.e bottom of list)
+		priority=priority_order[row[priority_column]]
+		id=int(row[id_column])
+		row[rank_column]='%06x.%s.%08x'%(priority,rank,id) # dots used as separators as they come before 0 in ascii.  short string comes before longer one.
+		row[parent_column] = row[parent_column].lstrip('#')	# clean up parent_column id_column
+		points = row[storypts_column].split(' ')[0]	# clean up story points
+		if points is '':
+			points = 0
+		row[storypts_column] = int(points)
+		
 
 ######################## Main starts here #####################
 #read the configuration
-planned_for_order={value:key for key,value in enumerate(configured_data['Planned For'])}
-priority_order={value:key for key,value in enumerate(configured_data['Priority'])}
 
 load_cell_formats()
 try:
@@ -327,6 +391,11 @@ try:
 	error_format=formats['Error_Item']
 except:
 	error_format=None
+planned_for_list=load_config('Planned For')
+priority_list=load_config('Priority')
+if not planned_for_list or not priority_list:
+	print("Error 'Planned For' and 'Priority' lists must be defined in Configuration file")
+	sys.exit(-1)
 progress_table=load_config('Progress')
 filters=load_config('Filters')
 hidden_columns=load_config('Hidden')
@@ -390,22 +459,8 @@ try:
 	x_error_sheet = print_header(x_error_sheet,header, error_worksheet)
 	set_error_sheet_color(error_sheet_color)
 	
-	# create dictionary for the header names and indices
 	print("Cleaning Data...")
-	for row in filtered_data:
-		try:
-			rank = row[rank_column].split(' ')[1]
-		except:
-			rank = 'z' # no rank assigned so give is very high ranking (i.e bottom of list)
-		priority=priority_order[row[priority_column]]
-		id=int(row[id_column])
-		row[rank_column]='%06x.%s.%08x'%(priority,rank,id) # dots used as separators as they come before 0 in ascii.  short string comes before longer one.
-		row[parent_column] = row[parent_column].lstrip('#')	# clean up parent_column id_column
-		points = row[storypts_column].split(' ')[0]	# clean up story points
-		if points is '':
-			points = 0
-		row[storypts_column] = int(points)
-		
+	clean_data()
 	print("Sorting...")
 	filtered_data.sort(key= itemgetter(rank_column)) #creates ranked list
 	
@@ -424,6 +479,10 @@ try:
 	# check data consistency and report to Error tab
 	missing_parents_report()
 	wrong_state_report()
+	
+	# create iteration report
+	create_iteration_team_report()
+	
 except:
 	workbook.close() # close what we've achieved
 	raise # re-throw the error
