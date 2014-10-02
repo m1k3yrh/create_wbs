@@ -126,6 +126,7 @@ def print_header(ax,arow,aworksheet,hidden=False):
 		aworksheet.write(ax,y,col,header_format)
 		if hidden and hidden_columns and col in hidden_columns:
 			aworksheet.set_column(y,y,None,None,{'hidden':True})
+	aworksheet.freeze_panes(ax+1, 0)
 	ax +=1
 	return ax
 
