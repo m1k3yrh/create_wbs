@@ -35,6 +35,8 @@ except:
 workbook = xlsxwriter.Workbook(output_excel_file_name)	#creates output excel file 
 grouped_worksheet = workbook.add_worksheet('Work Breakdown')	#creates a worksheet for grouping
 grouped_worksheet.outline_settings(True, False, False, True)	# displays the grouping summary above
+iteration_report_worksheet = workbook.add_worksheet('Iteration Report')	#creates a iteration_report_worksheet for grouping
+iteration_report_worksheet.outline_settings(True, False, False, True)	# displays the grouping summary above
 ranked_worksheet = workbook.add_worksheet('Ranked')	#creates a worksheet for ranking
 input_worksheet = workbook.add_worksheet('Input')	#creates a worksheet for regurgitating input
 error_worksheet = workbook.add_worksheet('Errors') # workbook for all suspicious data found from input
@@ -214,6 +216,30 @@ def missing_parents_report():
 			x_error_sheet=print_list(x_error_sheet,parent_list[id],error_worksheet)
 	return is_error
 
+def parents_before_children_report():
+	global x_error_sheet
+	planned_for_order={value:key for key,value in enumerate(planned_for_list)}
+	
+	is_error=False
+	for row in filtered_data:
+		try:
+			parent=id_dictionary[row[parent_column]]
+		except KeyError:
+			continue # Item has no parent so move on and check next one
+		parent_planned_for=planned_for_order[parent[planned_for_column]] # Find ranking of parent
+		child_planned_for=planned_for_order[row[planned_for_column]]
+		if parent_planned_for<child_planned_for:
+			if not is_error:
+				set_error_sheet_color('orange')
+				error_worksheet.write(x_error_sheet,0,
+						"Warning: The follow items are in Iterations after their parent. (A parent can't be completed until all children are completed.  Suggest you move the Parent to Backlog or the same iteration as child)",error_format)
+				x_error_sheet+=1
+				is_error=True
+			x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
+	return is_error
+	
+	
+	
 # Optional checks done on data to check that items are in correct location and state based on progress etc.
 def wrong_state_report():
 	global x_error_sheet
@@ -315,10 +341,8 @@ def find_column(key):
 		sys.exit(0)
 		
 def create_iteration_team_report():
-	worksheet = workbook.add_worksheet('Iteration Report')	#creates a worksheet for grouping
-	worksheet.outline_settings(True, False, False, True)	# displays the grouping summary above
 	x=0
-	x=print_header(x,header,worksheet,hidden=True)
+	x=print_header(x,header,iteration_report_worksheet,hidden=True)
 
 # Build a dictionary of everything in each Sprint/iteration	
 	d={}
@@ -337,15 +361,15 @@ def create_iteration_team_report():
 			d[t]=[row]
 			
 	for p in planned_for_list:
-		worksheet.write(x,0,p)
+		iteration_report_worksheet.write(x,0,p)
 		px=x # Remember the Iteration Row (aka PlannedFor) so can add data later
 		x+=1
 		iteration_total_pts=0.0
 		iteration_earned_pts=0.0
 		for f in tc:
 			if team_categories: # Only create a Category row if team_categories is defined
-				worksheet.write(x,0,f)
-				worksheet.set_row(x, None, None, {'level': 1,'collapsed':True})		# sets the grouping level for this row
+				iteration_report_worksheet.write(x,0,f)
+				iteration_report_worksheet.set_row(x, None, None, {'level': 1,'collapsed':True})		# sets the grouping level for this row
 				fx=x # remember the FiledAgainst row so can add data later
 				x+=1
 				depth=2
@@ -365,22 +389,21 @@ def create_iteration_team_report():
 # Note: We only add points belonging to this object (not accumulated points which includes children) to prevent double counting.
 					except IndexError:
 						pass # Ignore index error.  Occurs when an item has parents which are not in data set.  A Fatal error is reported to Error Sheet
-					x=print_a_row(x,row,worksheet,depth=depth,options={'hidden':True})
+					x=print_a_row(x,row,iteration_report_worksheet,depth=depth,options={'hidden':True})
 			if team_categories: # Only update the Category row if team_categories is defined
-				worksheet.write(fx,storypts_column,category_total_pts)
-				worksheet.write(fx,earned_story_points_column,category_earned_pts)
+				iteration_report_worksheet.write(fx,storypts_column,category_total_pts)
+				iteration_report_worksheet.write(fx,earned_story_points_column,category_earned_pts)
 				if category_total_pts: # Avoid div_zero.  Don't calculate percent if there is no points.
-					worksheet.write(fx,percent_complete_column,category_earned_pts/category_total_pts,percent_complete_format)
+					iteration_report_worksheet.write(fx,percent_complete_column,category_earned_pts/category_total_pts,percent_complete_format)
 			iteration_total_pts+=category_total_pts
 			iteration_earned_pts+=category_earned_pts
-		worksheet.write(px,storypts_column,iteration_total_pts)
-		worksheet.write(px,earned_story_points_column,iteration_earned_pts)
+		iteration_report_worksheet.write(px,storypts_column,iteration_total_pts)
+		iteration_report_worksheet.write(px,earned_story_points_column,iteration_earned_pts)
 		if iteration_total_pts: # Avoid div_zero.  Don't calculate percent if there is no points.
-			worksheet.write(px,percent_complete_column,iteration_earned_pts/iteration_total_pts,percent_complete_format)
+			iteration_report_worksheet.write(px,percent_complete_column,iteration_earned_pts/iteration_total_pts,percent_complete_format)
 
 # Calculate ranking and clean up Parent and Story Points columns
 def clean_data():
-	planned_for_order={value:key for key,value in enumerate(planned_for_list)}
 	priority_order={value:key for key,value in enumerate(priority_list)}
 	for row in filtered_data:
 		try:
@@ -497,6 +520,7 @@ try:
 	# check data consistency and report to Error tab
 	missing_parents_report()
 	wrong_state_report()
+	parents_before_children_report()
 	
 	# create iteration report
 	create_iteration_team_report()
