@@ -93,14 +93,17 @@ def check_filters(arow):
 		
 # function to write a row to the output file
 # function returns the index for the next available row
-def print_a_row(ax,arow,aworksheet,depth=0): 
+def print_a_row(ax,arow,aworksheet,depth=0,format=True): 
 	for i,y in enumerate(arow):
-		if ( i==id_column or i==parent_column ) and hyperlink_prefix!=None:
+		if format and ( i==id_column or i==parent_column ) and hyperlink_prefix!=None:
 			aworksheet.write_url(ax,i,hyperlink_prefix + y ,None, y )
-		elif i==percent_complete_column :
+		elif format and i==percent_complete_column :
 			aworksheet.write(ax,i,y,percent_complete_format)
 		else:
-			cell_format=set_cell_format(y)
+			if format: 
+				cell_format=set_cell_format(y)
+			else:
+				cell_format=None
 			aworksheet.write(ax,i,y,cell_format)	
 			
 	aworksheet.set_row(ax, None, None, {'level': depth})		# sets the grouping level for this row
@@ -108,9 +111,9 @@ def print_a_row(ax,arow,aworksheet,depth=0):
 	return ax
 
 # print a list of rows
-def print_list(ax,alist,aworksheet,depth=0):
+def print_list(ax,alist,aworksheet,depth=0,format=True):
 	for row in alist:
-		ax=print_a_row(ax,row,aworksheet,depth)
+		ax=print_a_row(ax,row,aworksheet,depth,format)
 	return ax
 
 # function to write a row to the output file
@@ -381,8 +384,7 @@ filtered_data=[row for row in data if not check_filters(row)]
 try:
 	print("Create Raw Sheet...")
 	x_raw_sheet = print_header(x_raw_sheet,header, input_worksheet)
-	for i,row in enumerate(data,1):
-		print_a_row(i,row, input_worksheet)	# write to input worksheet
+	print_list(1,data, input_worksheet,format=False)	# write to input worksheet
 	
 	# Prep error sheet
 	x_error_sheet = print_header(x_error_sheet,header, error_worksheet)
@@ -409,8 +411,6 @@ try:
 	
 	
 	print("Creating Worksheets...")
-	
-	
 	x_grouped_sheet = print_header(x_grouped_sheet,header, grouped_worksheet,hidden=True)
 		
 	id_dictionary={row[id_column]:row  for row in filtered_data}
@@ -419,8 +419,7 @@ try:
 	search_children(None,0)		# creates grouping and writes to grouped worksheet
 	
 	x_ranked_sheet = print_header(x_ranked_sheet,header, ranked_worksheet,hidden=True)
-	for row in filtered_data:
-		x_ranked_sheet = print_a_row(x_ranked_sheet,row, ranked_worksheet)	# writes to ranked worksheet
+	x_ranked_sheet = print_list(x_ranked_sheet,filtered_data, ranked_worksheet)	# writes to ranked worksheet
 	
 	# check data consistency and report to Error tab
 	missing_parents_report()
