@@ -79,6 +79,14 @@ configured_data={ # Do not change this line.  All configuration is kept within t
 		"Implemented" : 0.75,
 		"Done" : 1.0
 	},
+
+
+# Average Sizes for unestimated work
+	"Average Sizes":{
+		"S" : 13,
+		"M"	: 30,
+		"L" : 100
+	},
 	
 # List the columns to be searched and the values that should be ignored. e.g. '"Status":["Invalid","Rejected"]' means all items with status "Invalid"
 # or "Rejected" will be ignored.  
