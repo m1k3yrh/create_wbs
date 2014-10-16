@@ -138,7 +138,7 @@ configured_data={ # Do not change this line.  All configuration is kept within t
 	"Product Categories":['Products/mWallet Product'],
 	
 # Backlog(s) into which a Product Work Items should be assigned.
-	"Product Backlogs":['Backlog'],
+#	"Product Backlogs":['Backlog'],
 	
 # List impeded states here. Used to check that if a parent is impeded all it's children are impeded and vica versa.
 	"Impeded States":["Impeded"],
