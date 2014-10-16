@@ -98,7 +98,7 @@ class output_worksheet_error_class(output_worksheet_class):
 		self.error_sheet_color='green'
 	
 	def append_warning(self,s):	
-		if not error_sheet_color=='red':
+		if not self.error_sheet_color=='red':
 			self.error_sheet_color='orange'
 			self.worksheet.set_tab_color(self.error_sheet_color)
 		self.worksheet.write(self.x,0,s,config.error_format)
@@ -255,6 +255,9 @@ class spreadsheet_row:
 		self.accumulated_earned_points=None
 		self.percent_complete=None
 		self.based_on_shirt_size=False
+		self.planned_for=None
+		self.filed_against=None
+		self.type=None
 	
 		self.raw_row=r
 		self.processed_row=list(self.raw_row) # clone the row so changes to processed row do not impact raw row.
@@ -275,6 +278,10 @@ class spreadsheet_row:
 			pts=int(pts)
 		self.processed_row[header.storypts_column]=self.points = pts
 		self.processed_row.extend(['']*(len(header.full_header)-len(header.raw_header))) # Add extra columns to make to length of full header
+		
+		self.planned_for=self.raw_row[header.planned_for_column]
+		self.filed_against=self.raw_row[header.filed_against_column]
+		self.type=self.raw_row[header.type_column]
 
 	# Test the Filters to see if any of the columns match
 	def check_filters(self):
@@ -415,9 +422,9 @@ class iteration_team_report_class:
 			tc=['all'] # Create a dummy team_categories
 		for row in data:
 			if config.team_categories:
-				t=(row.processed_row[header.planned_for_column],row.processed_row[header.filed_against_column])
+				t=(row.planned_for,row.filed_against)
 			else:
-				t=(row.processed_row[header.planned_for_column],tc[0]) # If team_categories not defined, stuff everything in all
+				t=(row.planned_for,tc[0]) # If team_categories not defined, stuff everything in all
 			if t in self.data:
 				self.data[t].append(row)
 			else:
@@ -465,24 +472,21 @@ class iteration_team_report_class:
 
 def parents_before_children_report():
 	global x_error_sheet
-	planned_for_order={value:key for key,value in enumerate(planned_for_list)}
+	planned_for_order={value:key for key,value in enumerate(config.planned_for_list)}
 	
 	is_error=False
 	for row in filtered_data:
 		try:
-			parent=id_dictionary[row[parent_column]]
+			parent=id_dictionary[row.parent]
 		except KeyError:
 			continue # Item has no parent so move on and check next one
-		parent_planned_for=planned_for_order[parent[planned_for_column]] # Find ranking of parent
-		child_planned_for=planned_for_order[row[planned_for_column]]
+		parent_planned_for=planned_for_order[parent.planned_for] # Find ranking of parent
+		child_planned_for=planned_for_order[row.planned_for]
 		if parent_planned_for<child_planned_for:
 			if not is_error:
-				set_error_sheet_color('orange')
-				error_worksheet.write(x_error_sheet,0,
-						"Warning: The follow items are in Iterations after their parent. (A parent can't be completed until all children are completed.  Suggest you move the Parent to Backlog or the same iteration as child)",error_format)
-				x_error_sheet+=1
+				error_worksheet.append_warning("Warning: The follow items are in Iterations after their parent. (A parent can't be completed until all children are completed.  Suggest you move the Parent to Backlog or the same iteration as child)")
 				is_error=True
-			x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
+			error_worksheet.append_a_row(row.processed_row)
 	return is_error
 	
 	
@@ -491,86 +495,57 @@ def parents_before_children_report():
 def wrong_state_report():
 	global x_error_sheet
 
-	if new_states:
-		list=[row for row in filtered_data
-				if row[status_column] in new_states and len(row)>accumulated_earnt_points_column and row[accumulated_earnt_points_column]>0]
+	if config.new_states:
+		list=[row for row in filtered_data if row.status in config.new_states and row.accumulated_earned_points!=None and row.accumulated_earned_points>0]
 		if list:
-			set_error_sheet_color('orange')
-			error_worksheet.write(x_error_sheet,0,
-								"Warning: The follow items are marked new but have children with progress",error_format)
-			x_error_sheet+=1
-			x_error_sheet=print_list(x_error_sheet,list,error_worksheet)
+			error_worksheet.append_error("Warning: The follow items are marked new but have children with progress")
+			error_worksheet.append_list(list)
 
-	if completed_states:
-		list=[row for row in filtered_data if not row[status_column] in completed_states and len(row)>percent_complete_column \
-													and row[percent_complete_column]!='' and row[percent_complete_column]>0.99]
+	if config.completed_states:
+		list=[row for row in filtered_data if not row.status in config.completed_states and row.percent_complete!=None and row.percent_complete>0.99]
 		if list:
-			set_error_sheet_color('orange')
-			error_worksheet.write(x_error_sheet,0,
-								"Warning: The follow items are have all children complete but are still in early progress",error_format)
-			x_error_sheet+=1
-			x_error_sheet=print_list(x_error_sheet,list,error_worksheet)
+			error_worksheet.append_warning("Warning: The follow items are have all children complete but are still in early progress")
+			error_worksheet.append_list(list)
 	
-	if impeded_states:
+	if config.impeded_states:
 		is_warning=False
 		for row in filtered_data:
-			try:
-				if row[status_column] in impeded_states:
-					unimpeded_children=[row for row in parent_list[row[id_column]] if not row[status_column] in impeded_states]
-					if not unimpeded_children==[]:
-						if is_warning==False:
-							set_error_sheet_color('orange')
-							error_worksheet.write(x_error_sheet,0,
-												"Warning: The follow items have open children even though the parent is Impeded",error_format)
-							x_error_sheet+=1
-							is_warning=True
-						x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
-			except (KeyError):
-				continue # KeyError occurs if item has no children
+			if row.status in config.impeded_states and not row.children==[]:
+				unimpeded_children=[l for l in row.children if not l.status in config.impeded_states]
+				if not unimpeded_children==[]:
+					if is_warning==False:
+						error_worksheet.append_warning("Warning: The follow items have open children even though the parent is Impeded")
+						is_warning=True
+					error_worksheet.append_a_row(row.processed_row)
 
 		is_warning=False
 		for row in filtered_data:
-			try:
-				if not row[status_column] in impeded_states:
-					unimpeded_children=[row for row in parent_list[row[id_column]] if not row[status_column] in impeded_states]
-					if unimpeded_children==[]:
-						if is_warning==False:
-							set_error_sheet_color('orange')
-							error_worksheet.write(x_error_sheet,0,
-												"Warning: The follow items are open even though all children are Impeded",error_format)
-							x_error_sheet+=1
-							is_warning=True
-						x_error_sheet=print_a_row(x_error_sheet,row,error_worksheet)
-			except (KeyError):
-				continue # KeyError occurs if item has no children
+			if not row.status in config.impeded_states and not row.children==[]:
+				impeded_children=[l for l in row.children if not l.status in config.impeded_states]
+				if impeded_children==[]:
+					if is_warning==False:
+						error_worksheet.append_warning("Warning: The follow items are open even though all children are Impeded")
+						is_warning=True
+					error_worksheet.append_a_row(row.processed_row)
 	
-	if product_work_items and product_backlogs:
-		list=[row for row in filtered_data if row[type_column] in product_work_items and not row[planned_for_column] in product_backlogs]
+	if config.product_work_items and config.product_backlogs:
+		list=[row for row in filtered_data if row.type in config.product_work_items and not row.planned_for in config.product_backlogs]
 		if list:
-			set_error_sheet_color('orange')
-			error_worksheet.write(x_error_sheet,0,
-								"Warning: The follow product items are not plannedFor Product Backlog",error_format)
-			x_error_sheet+=1
-			x_error_sheet=print_list(x_error_sheet,list,error_worksheet)
+			error_worksheet.append_warning("Warning: The follow product items are not plannedFor Product Backlog")
+			error_worksheet.append_list(list)
 	
-	if product_work_items and product_categories:
+	if config.product_work_items and config.product_categories:
 		is_warning=False
-		list=[row for row in filtered_data if row[type_column] in product_work_items and not row[filed_against_column] in product_categories]
+		list=[row for row in filtered_data if row.type in config.product_work_items and not row.filed_against in config.product_categories]
 		if list:
-			set_error_sheet_color('orange')
-			error_worksheet.write(x_error_sheet,0,
-								"Warning: The follow Product Items are not FiledAgainst Product Categories",error_format)
-			x_error_sheet+=1
-			x_error_sheet=print_list(x_error_sheet,list,error_worksheet)
+			error_worksheet.append_warning("Warning: The follow Product Items are not FiledAgainst Product Categories")
+			error_worksheet.append_list(list)
 	
-	if team_work_items and team_categories:
-		list=[row for row in filtered_data if row[type_column] in team_work_items and not row[filed_against_column] in team_categories]
+	if config.team_work_items and config.team_categories:
+		list=[row for row in filtered_data if row.type in config.team_work_items and not row.filed_against in config.team_categories]
 		if list:
-			set_error_sheet_color('orange')
-			error_worksheet.write(x_error_sheet,0,
-								"Warning: The follow Team Items are not FiledAgainst Team Categories",error_format)
-			x_error_sheet+=1
-			x_error_sheet=print_list(x_error_sheet,list,error_worksheet)
+			error_worksheet.append_warning("Warning: The follow Team Items are not FiledAgainst Team Categories")
+			error_worksheet.append_list(list)
 	
 	return
 
@@ -647,8 +622,8 @@ try:
 	
 # Comment out warning reports for now as not refactored to new code.  Will work on adding shirtsize story point mappings.
 	# check data consistency and report to Error tab
-#	wrong_state_report()
-#	parents_before_children_report()
+	wrong_state_report()
+	parents_before_children_report()
 	
 	
 except:
