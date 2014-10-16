@@ -85,10 +85,11 @@ class iteration_report_worksheet_class(output_worksheet_class):
 
 # Add total points, earned points and percent complete to a row that was previously written to.
 	def update_row(self,fx,total_pts,earned_pts):
-		self.worksheet.write(fx,header.accumulated_story_points_column,total_pts)
-		self.worksheet.write(fx,header.accumulated_earnt_points_column,earned_pts)
-		if total_pts: # Avoid div_zero.  Don't calculate percent if there is no points.
-			self.worksheet.write(fx,header.percent_complete_column,earned_pts/total_pts,config.percent_complete_format)
+		self.worksheet.write(fx,header.storypts_column,total_pts)
+		if config.progress_table:
+			self.worksheet.write(fx,header.earned_story_points_column,earned_pts)
+			if total_pts: # Avoid div_zero.  Don't calculate percent if there is no points.
+				self.worksheet.write(fx,header.percent_complete_column,earned_pts/total_pts,config.percent_complete_format)
 
 		
 class output_worksheet_error_class(output_worksheet_class):	
@@ -160,9 +161,8 @@ class config_class:
 		self.average_sizes=self.load_config('Average Sizes')
 
 	def load_cell_formats(self):
-		try:
-			configs=self.load_config('Format')
-		except:
+		configs=self.load_config('Format')
+		if not configs:
 			formats=None
 		else:
 			formats={config_key:workbook.add_format(config_value) for config_key,config_value in configs.items()}
@@ -188,11 +188,14 @@ class header_class:
 		self.raw_header=r
 
 		self.full_header=list(self.raw_header) # Clone list
-		self.full_header.append("Earned Story Points")
+		if config.progress_table:
+			self.full_header.append("Earned Story Points")
 		self.full_header.append("Accumulated Story Points")
-		self.full_header.append("Accumulated Earnt Points")
-		self.full_header.append("Percent Complete")		
-		self.full_header.append("Based on Shirt Size")
+		if config.progress_table:
+			self.full_header.append("Accumulated Earnt Points")
+			self.full_header.append("Percent Complete")		
+		if config.average_sizes:
+			self.full_header.append("Based on Shirt Size")
 
 		#create enumerated dictionary of header to help finding columns
 		self.headers={value:key for key,value in enumerate(self.full_header)}
@@ -207,19 +210,33 @@ class header_class:
 		self.type_column = self.find_column('Type')
 		self.status_column = self.find_column('Status')
 		self.storypts_column = self.find_column('Story Points')	
-		self.earned_story_points_column=self.find_column("Earned Story Points")
+		if config.progress_table:
+			self.earned_story_points_column=self.find_column("Earned Story Points")
+		else:
+			self.earned_story_points_column=None
 		self.accumulated_story_points_column=self.find_column("Accumulated Story Points")
-		self.accumulated_earnt_points_column=self.find_column("Accumulated Earnt Points")
-		self.percent_complete_column=self.find_column("Percent Complete")
-		self.shirt_size_column=self.find_column("SSPoints")	
-		self.based_on_shirt_size_column=self.find_column("Based on Shirt Size")
+		if config.progress_table:
+			self.accumulated_earnt_points_column=self.find_column("Accumulated Earnt Points")
+			self.percent_complete_column=self.find_column("Percent Complete")
+		else:
+			self.accumulated_earnt_points_column=None
+			self.percent_complete_column=None
+		if config.average_sizes:
+			self.shirt_size_column=self.find_column("SSPoints")	
+			self.based_on_shirt_size_column=self.find_column("Based on Shirt Size")
+		else:
+			self.based_on_shirt_size_column=None
+			self.shirt_size_column=None
 
-	def find_column(self,key):
+	def find_column(self,key,optional=False):
 		try:
 			return self.headers[key]
 		except:
-			print("Error: csv file must contain '%s' attribute"%(key))
-			sys.exit(0)	
+			if not optional:
+				print("Error: csv file must contain '%s' attribute"%(key))
+				sys.exit(0)	
+			else:
+				return None
 
 
 # Class to store each row from the input file.
@@ -346,7 +363,7 @@ class work_breakdown_class:
 					based_on_shirt_size|=e
 			else:
 				acc_pts=None
-			if acc_pts==None or acc_pts==0:
+			if config.average_sizes and (acc_pts==None or acc_pts==0):  # If average sizes are defined for Shirt Sizes then try to use these when Story points don't exist
 				shirt_size=acurrent.processed_row[header.shirt_size_column]
 				try:
 					ss_value=config.average_sizes[shirt_size]
@@ -363,10 +380,11 @@ class work_breakdown_class:
 				acc_pts+=mypts # If I have points and so does my child, add them together.
 			acc_earned_pts+=my_earned_pts
 			acurrent.set_accumulated_points(acc_pts)
-			acurrent.set_earned_points(my_earned_pts)
-			acurrent.set_acc_earned_points(acc_earned_pts)
+			if config.progress_table:
+				acurrent.set_earned_points(my_earned_pts)
+				acurrent.set_acc_earned_points(acc_earned_pts)
 			acurrent.set_based_on_shirt_size(based_on_shirt_size)
-			if acc_pts and acc_pts>0:
+			if acc_pts and acc_pts>0 and header.percent_complete_column:
 				percent_complete=acc_earned_pts/acc_pts
 				acurrent.set_percent_complete(percent_complete)
 			return [acc_pts,acc_earned_pts,based_on_shirt_size]
@@ -399,7 +417,7 @@ class iteration_team_report_class:
 			if config.team_categories:
 				t=(row.processed_row[header.planned_for_column],row.processed_row[header.filed_against_column])
 			else:
-				t=(row[header.planned_for_column],tc[0]) # If team_categories not defined, stuff everything in all
+				t=(row.processed_row[header.planned_for_column],tc[0]) # If team_categories not defined, stuff everything in all
 			if t in self.data:
 				self.data[t].append(row)
 			else:
@@ -411,7 +429,7 @@ class iteration_team_report_class:
 		if config.team_categories:
 			tc=config.team_categories
 		else:
-			tc=['all'] # Create a dummy team_categories					
+			tc=['all'] # Use the dummy team_categories					
 		for p in config.planned_for_list:
 			px=iteration_report_worksheet.append_iteration(p)
 			iteration_total_pts=0.0
@@ -434,8 +452,9 @@ class iteration_team_report_class:
 							category_total_pts+=row.points 
 							category_earned_pts+=row.earned_points
 	# Note: We only add points belonging to this object (not accumulated points which includes children) to prevent double counting.
-						except IndexError:
+						except (IndexError,TypeError):
 							pass # Ignore index error.  Occurs when an item has parents which are not in data set.  A Fatal error is reported to Error Sheet
+								# Ignore TypeError.  Occurs when item doesn't have points.
 						x=iteration_report_worksheet.append_a_row(row.processed_row,depth=depth,options={'hidden':True})
 				if config.team_categories: # Only update the Category row if team_categories is defined
 					iteration_report_worksheet.update_row(fx,category_total_pts,category_earned_pts)
