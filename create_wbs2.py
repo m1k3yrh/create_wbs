@@ -258,6 +258,7 @@ class spreadsheet_row:
 		self.planned_for=None
 		self.filed_against=None
 		self.type=None
+		self.shirt_size=None
 	
 		self.raw_row=r
 		self.processed_row=list(self.raw_row) # clone the row so changes to processed row do not impact raw row.
@@ -279,9 +280,16 @@ class spreadsheet_row:
 		self.processed_row[header.storypts_column]=self.points = pts
 		self.processed_row.extend(['']*(len(header.full_header)-len(header.raw_header))) # Add extra columns to make to length of full header
 		
-		self.planned_for=self.raw_row[header.planned_for_column]
-		self.filed_against=self.raw_row[header.filed_against_column]
-		self.type=self.raw_row[header.type_column]
+		if header.planned_for_column!=None:
+			self.planned_for=self.raw_row[header.planned_for_column]
+		if header.filed_against_column!=None:
+			self.filed_against=self.raw_row[header.filed_against_column]
+		if header.type_column!=None:
+			self.type=self.raw_row[header.type_column]
+		if header.shirt_size_column!=None:
+			self.shirt_size=self.raw_row[header.shirt_size_column]
+			if self.shirt_size=='Unassigned' or len(self.shirt_size)==0:
+				self.shirt_size=None
 
 	# Test the Filters to see if any of the columns match
 	def check_filters(self):
@@ -371,7 +379,7 @@ class work_breakdown_class:
 			else:
 				acc_pts=None
 			if config.average_sizes and (acc_pts==None or acc_pts==0):  # If average sizes are defined for Shirt Sizes then try to use these when Story points don't exist
-				shirt_size=acurrent.processed_row[header.shirt_size_column]
+				shirt_size=acurrent.shirt_size
 				try:
 					ss_value=config.average_sizes[shirt_size]
 				except:
@@ -382,7 +390,7 @@ class work_breakdown_class:
 					acc_pts=ss_value
 					based_on_shirt_size=True
 			if acc_pts==None and mypts!=None:
-				acc_pts=mypts # Children don't have points but we do so our points are the points.
+				acc_pts=mypts #  don't have points but we do so our points are the points.
 			elif acc_pts!=None and mypts!=None:
 				acc_pts+=mypts # If I have points and so does my child, add them together.
 			acc_earned_pts+=my_earned_pts
@@ -471,7 +479,6 @@ class iteration_team_report_class:
 
 
 def parents_before_children_report():
-	global x_error_sheet
 	planned_for_order={value:key for key,value in enumerate(config.planned_for_list)}
 	
 	is_error=False
@@ -493,8 +500,6 @@ def parents_before_children_report():
 	
 # Optional checks done on data to check that items are in correct location and state based on progress etc.
 def wrong_state_report():
-	global x_error_sheet
-
 	if config.new_states:
 		list=[row for row in filtered_data if row.status in config.new_states and row.accumulated_earned_points!=None and row.accumulated_earned_points>0]
 		if list:
@@ -549,6 +554,40 @@ def wrong_state_report():
 	
 	return
 
+def shirtsizechecks():
+	parent_with_shirt_size=[]
+	leaf_without_shirt_size=[]
+	undefined_shirt_size=[]
+	item_started_but_no_children=[]
+	
+# Find Work items which are e2e (product items).  Leaves of Product item tree should contain ShirtSizes
+	product_work_items=[row for row in filtered_data if row.type in config.product_work_items]
+	
+	for row in product_work_items:
+		child_product_work_items=[r for r in product_work_items if r in row.children]
+		if row.shirt_size==None and child_product_work_items==[]:
+			leaf_without_shirt_size.append(row)
+		elif row.shirt_size!=None and child_product_work_items!=[]:
+			parent_with_shirt_size.append(row)
+		if row.shirt_size!=None and row.shirt_size not in config.average_sizes:
+			undefined_shirt_size.append(row)
+		if row.children==[] and row.status not in config.new_states:
+			item_started_but_no_children.append(row)
+			
+	if leaf_without_shirt_size!=[]:
+		error_worksheet.append_warning("Warning: The following Product Items have no Shirt Size defined.  (Total backlog sizing may be inaccurate)")
+		error_worksheet.append_list(leaf_without_shirt_size)
+	if parent_with_shirt_size!=[]:
+		error_worksheet.append_warning("Warning: The following Product Items have ShirtSizes even though they have children.  (Only leaf end-2-end work items should have ShirtSizes otherwise double counting may occur)")
+		error_worksheet.append_list(parent_with_shirt_size)
+	if undefined_shirt_size!=[]:
+		error_worksheet.append_error("FATAL: The following Product Items have ShirtSizes which are not defined")
+		error_worksheet.append_list(undefined_shirt_size)
+	if item_started_but_no_children!=[]:
+		error_worksheet.append_warning("Warning: The following Product Items are not New but haven't got any Implementation Items associated with them.  (Velocity of current or past sprints will likely be under-estimated)")
+		error_worksheet.append_list(item_started_but_no_children)
+				
+				
 
 ######################## Main starts here #####################
 # read the input parameters
@@ -624,6 +663,8 @@ try:
 	# check data consistency and report to Error tab
 	wrong_state_report()
 	parents_before_children_report()
+	if config.product_work_items:
+		shirtsizechecks()
 	
 	
 except:

@@ -137,7 +137,7 @@ configured_data={ # Do not change this line.  All configuration is kept within t
 # Product Categories: These are where Product Work Items should be assigned.
 	"Product Categories":['Products/mWallet Product'],
 	
-# Backlog(s) into which a Product Work Items should be assigned.
+# Backlog(s) into which a Product Work Items should be assigned.  (Commented out because mWallet prefer to set Story to PlannedFor when last Capabilities are assigned to a Sprint).
 #	"Product Backlogs":['Backlog'],
 	
 # List impeded states here. Used to check that if a parent is impeded all it's children are impeded and vica versa.
