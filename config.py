@@ -142,7 +142,9 @@ configured_data={ # Do not change this line.  All configuration is kept within t
 	
 # List impeded states here. Used to check that if a parent is impeded all it's children are impeded and vica versa.
 	"Impeded States":["Impeded","More Information"],
-	
+
+# Items that should have valid Story Points assigned
+	"Story Pointed Work Items":['Capability'],
 
 	
 	
