@@ -571,14 +571,14 @@ def shirtsizechecks():
 			parent_with_shirt_size.append(row)
 		if row.shirt_size!=None and row.shirt_size not in config.average_sizes:
 			undefined_shirt_size.append(row)
-		if row.children==[] and row.status not in config.new_states:
+		if row.children==[] and row.status not in config.new_states and row.status not in config.impeded_states:
 			item_started_but_no_children.append(row)
 			
 	if leaf_without_shirt_size!=[]:
 		error_worksheet.append_warning("Warning: The following Product Items have no Shirt Size defined.  (Total backlog sizing may be inaccurate)")
 		error_worksheet.append_list(leaf_without_shirt_size)
 	if parent_with_shirt_size!=[]:
-		error_worksheet.append_warning("Warning: The following Product Items have ShirtSizes even though they have children.  (Only leaf end-2-end work items should have ShirtSizes otherwise double counting may occur)")
+		error_worksheet.append_warning("Warning: The following Product Items have ShirtSizes even though they have Product Item children.  (Only leaf end-2-end work items should have ShirtSizes otherwise double counting may occur)")
 		error_worksheet.append_list(parent_with_shirt_size)
 	if undefined_shirt_size!=[]:
 		error_worksheet.append_error("FATAL: The following Product Items have ShirtSizes which are not defined")
