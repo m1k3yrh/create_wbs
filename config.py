@@ -27,7 +27,11 @@ configured_data={ # Do not change this line.  All configuration is kept within t
 		"FY14-Q4",
 		"FY15-Q1-Sprint1",
 		"FY15-Q1-Sprint2",
+		"FY15-Q1-Sprint3",
 		"FY15-Q1",
+		"FY15-Q2",
+		"FY15-Q3",
+		"FY15-Q4",
 		"Backlog"
     ],
     

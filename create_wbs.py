@@ -283,6 +283,9 @@ class spreadsheet_row:
 		
 		if header.planned_for_column!=None:
 			self.planned_for=self.raw_row[header.planned_for_column]
+			if config.planned_for_list and self.planned_for not in config.planned_for_list: # Find ranking of parent
+				print("Error: '%s' is not defined in config.py"%(self.planned_for))
+				sys.exit(0)
 		if header.filed_against_column!=None:
 			self.filed_against=self.raw_row[header.filed_against_column]
 		if header.type_column!=None:
