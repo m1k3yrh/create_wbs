@@ -256,6 +256,7 @@ class spreadsheet_row:
 		self.accumulated_earned_points=None
 		self.percent_complete=None
 		self.based_on_shirt_size=False
+		self.missing_estimate=False
 		self.planned_for=None
 		self.filed_against=None
 		self.type=None
@@ -329,7 +330,18 @@ class spreadsheet_row:
 	def set_based_on_shirt_size(self,b):
 		self.based_on_shirt_size=b
 		if b:
-			self.processed_row[header.based_on_shirt_size_column]='E'
+			self.processed_row[header.based_on_shirt_size_column]+='E'
+
+	def set_missing_estimate(self,b):
+		self.missing_estimate=b
+		if b:
+			self.processed_row[header.based_on_shirt_size_column]+='M'
+
+	def set_zero_points(self,b):
+		self.zero_points=b
+		if b:
+			self.processed_row[header.based_on_shirt_size_column]+='Z'
+
 
 # Takes a list of spreadsheet_rows and builds a dictionary using the id of each item as key.
 class id_dictionary_class(dict):
@@ -356,6 +368,9 @@ class work_breakdown_class:
 		if len(self.items_with_missing_parents):
 			self.missing_parents_report(self.items_with_missing_parents)
 		
+# Recursive routine.  Estimates the points for an item by totalling the points of it's children.
+# Routine is run on the roots to calculate sizes for whole WBS structure.
+# When called with only one argument or acurrent==None, then it scans all roots.
 	def calculate_points(self,acurrent=None):
 		if acurrent==None:
 			for row in self.roots:
@@ -363,6 +378,7 @@ class work_breakdown_class:
 		else:
 			mypts=acurrent.points
 			status=acurrent.status
+			type=acurrent.type
 			try:
 				my_earned_pts=config.progress_table[status]*mypts
 			except:
@@ -370,43 +386,50 @@ class work_breakdown_class:
 			acc_earned_pts=0
 
 			based_on_shirt_size=False
+			missing_estimates=False
+			zero_points_flag=False
 			if len(acurrent.children):
 				acc_pts=0
 				for row in acurrent.children:
-					[p,q,e]=self.calculate_points(row) # recursively add points from children
-					if p==None:
-						acc_pts=None # If any child has no points we cannot estimate points for parent
-					elif not acc_pts==None:
+					[p,q,e,f,g]=self.calculate_points(row) # recursively add points from children
+					if p!=None:
 						acc_pts+=p
 					acc_earned_pts+=q
 					based_on_shirt_size|=e
+					missing_estimates|=f
+					zero_points_flag|=g
 			else:
-				acc_pts=None
-			if config.average_sizes and (acc_pts==None or acc_pts==0):  # If average sizes are defined for Shirt Sizes then try to use these when Story points don't exist
+				acc_pts=None # no  children so points from children is None   XXXXXXX
+			if config.average_sizes and (acc_pts==0 or acc_pts==None) and type not in config.story_pointed_work_items:  # If we don't have points from children then try to use shirt size to give estimated points
 				shirt_size=acurrent.shirt_size
 				try:
 					ss_value=config.average_sizes[shirt_size]
 				except:
 					based_on_shirt_size=False
-					acc_pts=None
+					missing_estimates=True
+					print(acurrent.id)
 					pass # if we fail to match just press on
 				else:
 					acc_pts=ss_value
 					based_on_shirt_size=True
 			if acc_pts==None and mypts!=None:
-				acc_pts=mypts #  don't have points but we do so our points are the points.
+				acc_pts=mypts #  don't have child points but we do have our own so our points are the points.
 			elif acc_pts!=None and mypts!=None:
 				acc_pts+=mypts # If I have points and so does my child, add them together.
 			acc_earned_pts+=my_earned_pts
 			acurrent.set_accumulated_points(acc_pts)
+			if mypts==0 and type in config.story_pointed_work_items:
+				zero_points_flag=True
 			if config.progress_table:
 				acurrent.set_earned_points(my_earned_pts)
 				acurrent.set_acc_earned_points(acc_earned_pts)
 			acurrent.set_based_on_shirt_size(based_on_shirt_size)
+			acurrent.set_missing_estimate(missing_estimates)
+			acurrent.set_zero_points(zero_points_flag)
 			if acc_pts and acc_pts>0 and header.percent_complete_column:
 				percent_complete=acc_earned_pts/acc_pts
 				acurrent.set_percent_complete(percent_complete)
-			return [acc_pts,acc_earned_pts,based_on_shirt_size]
+			return [acc_pts,acc_earned_pts,based_on_shirt_size,missing_estimates,zero_points_flag]
 		
 	def write_to_spreadsheet(self,worksheet,acurrent=None,depth=0):
 		if acurrent==None:
