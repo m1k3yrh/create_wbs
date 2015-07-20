@@ -407,7 +407,6 @@ class work_breakdown_class:
 				except:
 					based_on_shirt_size=False
 					missing_estimates=True
-					print(acurrent.id)
 					pass # if we fail to match just press on
 				else:
 					acc_pts=ss_value
